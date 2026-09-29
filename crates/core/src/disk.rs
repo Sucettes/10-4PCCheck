@@ -6,6 +6,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::attributes::{self, AttributeStatus};
+use crate::checks::{self, Check};
 use crate::smartctl::SmartctlError;
 
 /// Seule version majeure du format JSON de smartctl prise en charge.
@@ -114,6 +115,8 @@ pub struct DiskInfo {
     pub exit_status: u8,
     /// Avertissements lisibles tirés du code de sortie et des messages de smartctl.
     pub warnings: Vec<String>,
+    /// Vérifications de cohérence entre compteurs (voir `checks`).
+    pub checks: Vec<Check>,
 }
 
 /// Un disque listé par le scan, avec ses données ou l'erreur de lecture. Un disque illisible
@@ -386,7 +389,7 @@ impl RawOutput {
             (None, None) => None,
         };
 
-        DiskInfo {
+        let mut info = DiskInfo {
             device,
             model: self.model_name,
             serial: self.serial_number,
@@ -420,7 +423,10 @@ impl RawOutput {
             life_remaining_pct,
             exit_status,
             warnings,
-        }
+            checks: Vec::new(),
+        };
+        info.checks = checks::run(&info);
+        info
     }
 }
 

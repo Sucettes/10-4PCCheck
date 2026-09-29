@@ -116,6 +116,15 @@ export function bytesWrittenHint(disk: DiskInfo): HintText {
   };
 }
 
+export const checksHint: HintText = {
+  title: "Vérifications de cohérence",
+  body: [
+    "Comparaison des compteurs entre eux : écritures et heures, heures et démarrages, usure et écritures, compteurs d'erreurs.",
+    "Un disque dont les compteurs ne se tiennent pas a peut-être été remis à zéro pour paraître neuf, ou a eu un usage particulier (serveur, boîtier USB).",
+    "« Attention » est une question à poser au vendeur, pas une preuve.",
+  ],
+};
+
 export const serialHint: HintText = {
   title: "Numéro de série",
   body: [

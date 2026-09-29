@@ -3,6 +3,7 @@ import { Hint } from "./Hint";
 import {
   attributeColumnHints,
   bytesWrittenHint,
+  checksHint,
   firmwareHint,
   interfaceHint,
   nvmeHints,
@@ -16,7 +17,7 @@ import {
 } from "./hints";
 import { formatBytes, formatHex, formatNumber, maskSerial, mediaLabel } from "./format";
 import { attributeLevel, lifeLevel, nvmeStatus, smartVerdict } from "./status";
-import type { AtaAttribute, AttributeStatus, DiskInfo, NvmeHealth } from "./types";
+import type { AtaAttribute, AttributeStatus, Check, DiskInfo, NvmeHealth } from "./types";
 
 const nf0 = new Intl.NumberFormat("fr-CA", { maximumFractionDigits: 0 });
 
@@ -58,6 +59,8 @@ export function DiskDetail({ disk }: { disk: DiskInfo }) {
           />
         </div>
       </section>
+
+      {disk.checks.length > 0 && <Checks checks={disk.checks} />}
 
       <TechSheet disk={disk} />
 
@@ -122,6 +125,30 @@ function Stat({ label, hint, value, sub }: { label: string; hint: HintText; valu
       <span className="stat-value">{value}</span>
       {sub && <span className="stat-sub">{sub}</span>}
     </div>
+  );
+}
+
+const checkLabels = {
+  ok: { label: "OK", cls: "status-good" },
+  info: { label: "Info", cls: "status-info" },
+  warn: { label: "Attention", cls: "status-warn" },
+} as const;
+
+function Checks({ checks }: { checks: Check[] }) {
+  return (
+    <section className="panel" aria-label="Vérifications de cohérence">
+      <h3>
+        <Hint hint={checksHint}>Vérifications de cohérence</Hint>
+      </h3>
+      <ul className="checks">
+        {checks.map((c) => (
+          <li key={c.text}>
+            <span className={`check-level ${checkLabels[c.level].cls}`}>{checkLabels[c.level].label}</span>
+            <span>{c.text}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

@@ -27,6 +27,11 @@ export interface AtaAttribute {
 
 export type AttributeStatus = "ok" | "watch" | "failing";
 
+export interface Check {
+  level: "ok" | "info" | "warn";
+  text: string;
+}
+
 export interface NvmeHealth {
   critical_warning: number | null;
   available_spare: number | null;
@@ -65,6 +70,7 @@ export interface DiskInfo {
   life_remaining_pct: number | null;
   exit_status: number;
   warnings: string[];
+  checks: Check[];
 }
 
 export type SmartctlError =

@@ -286,7 +286,7 @@ Claude vérifie tout ce qui peut l'être sans matériel réel. Le propriétaire 
 - [x] Écran « Un disque » selon la maquette : onglets par disque, vie restante, température, données écrites, fiche technique, attributs SMART (décimal / hexa), journal de santé NVMe. Info-bulles explicatives sur chaque donnée. Reste : boutons des tests (ci-dessous).
 - [x] Traduction française des attributs SMART courants (par nom smartctl, pas par ID : les ID 170+ changent de sens selon le fabricant). État par attribut : OK, à surveiller, échec.
 - [x] Score de santé par fabricant (SATA : 177, 202, 231, 233, SSD seulement) et `percentage_used` (NVMe).
-- [ ] Vérifications de cohérence.
+- [x] Vérifications de cohérence (module `checks` du moteur) : compteurs d'erreurs, écritures vs heures, heures vs démarrages (sessions très courtes ou très longues), usure vs écritures complètes, coupures brutales NVMe. Seuils en constantes, à ajuster sur de vrais disques.
 - [ ] Auto-tests SMART court et long avec suivi.
 - [ ] Scan de surface en lecture seule.
 - [ ] Test de capacité réelle (espace libre, puis disque entier avec confirmation).
