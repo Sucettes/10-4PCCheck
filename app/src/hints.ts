@@ -125,6 +125,16 @@ export const checksHint: HintText = {
   ],
 };
 
+export const selfTestHint: HintText = {
+  title: "Auto-tests SMART",
+  body: [
+    "Le disque se teste lui-même, en lecture seule : aucune donnée n'est modifiée et l'ordinateur reste utilisable.",
+    "Court : vérifie l'électronique et un échantillon de la surface, en 1 à 2 minutes. Long : lit toute la surface, de 10 minutes (SSD) à plusieurs heures (gros disque dur).",
+    "Chez un vendeur, lance au moins le court. Un échec de lecture au test long veut dire des secteurs illisibles : à éviter.",
+    "Un disque dans un boîtier USB peut interrompre le test s'il se met en veille.",
+  ],
+};
+
 export const serialHint: HintText = {
   title: "Numéro de série",
   body: [

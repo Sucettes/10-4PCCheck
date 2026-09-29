@@ -6,7 +6,7 @@ mod self_test;
 
 use std::path::{Path, PathBuf};
 
-use pccheck_core::{DiskEntry, Smartctl, SmartctlError};
+use pccheck_core::{DiskEntry, ScanDevice, SelfTestKind, SelfTestStatus, Smartctl, SmartctlError};
 use serde::Serialize;
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, State, WebviewWindow};
 
@@ -71,6 +71,36 @@ async fn app_info(state: State<'_, AppState>) -> Result<AppInfo, CommandError> {
 async fn scan_disks(state: State<'_, AppState>) -> Result<Vec<DiskEntry>, CommandError> {
     let smartctl = state.smartctl.clone()?;
     Ok(blocking(move || smartctl.scan_all()).await??)
+}
+
+/// Lance un auto-test SMART. `device` vient de `scan_disks` : chemin et type passés en arguments
+/// séparés à smartctl, jamais à un shell.
+#[tauri::command]
+async fn start_smart_test(
+    device: ScanDevice,
+    kind: SelfTestKind,
+    state: State<'_, AppState>,
+) -> Result<(), CommandError> {
+    let smartctl = state.smartctl.clone()?;
+    Ok(blocking(move || smartctl.start_self_test(&device, kind)).await??)
+}
+
+#[tauri::command]
+async fn abort_smart_test(
+    device: ScanDevice,
+    state: State<'_, AppState>,
+) -> Result<(), CommandError> {
+    let smartctl = state.smartctl.clone()?;
+    Ok(blocking(move || smartctl.abort_self_test(&device)).await??)
+}
+
+#[tauri::command]
+async fn smart_test_status(
+    device: ScanDevice,
+    state: State<'_, AppState>,
+) -> Result<SelfTestStatus, CommandError> {
+    let smartctl = state.smartctl.clone()?;
+    Ok(blocking(move || smartctl.self_test_status(&device)).await??)
 }
 
 #[tauri::command]
@@ -193,6 +223,9 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             app_info,
             scan_disks,
+            start_smart_test,
+            abort_smart_test,
+            smart_test_status,
             self_test_report
         ])
         .run(tauri::generate_context!());

@@ -27,6 +27,24 @@ export interface AtaAttribute {
 
 export type AttributeStatus = "ok" | "watch" | "failing";
 
+export type SelfTestKind = "short" | "long";
+
+export interface SelfTestResult {
+  kind: string;
+  passed: boolean | null;
+  text: string;
+  power_on_hours: number | null;
+}
+
+export interface SelfTestStatus {
+  supported: boolean | null;
+  running: boolean;
+  remaining_pct: number | null;
+  short_minutes: number | null;
+  long_minutes: number | null;
+  history: SelfTestResult[];
+}
+
 export interface Check {
   level: "ok" | "info" | "warn";
   text: string;

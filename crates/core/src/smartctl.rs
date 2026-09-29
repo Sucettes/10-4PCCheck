@@ -9,7 +9,11 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use thiserror::Error;
 
-use crate::disk::{dedupe_disks, parse_disk, parse_scan, DiskEntry, DiskInfo, ScanDevice};
+use crate::disk::{
+    dedupe_disks, parse_disk, parse_scan, DiskEntry, DiskInfo, RawOutput, ScanDevice,
+    FATAL_EXIT_BITS,
+};
+use crate::selftest::{parse_self_test_status, SelfTestKind, SelfTestStatus};
 
 /// Variable d'environnement qui force le chemin de smartctl (tests, développement).
 pub const ENV_OVERRIDE: &str = "PCCHECK_SMARTCTL";
@@ -99,12 +103,29 @@ impl Smartctl {
 
     /// Toutes les informations SMART d'un disque.
     pub fn info(&self, device: &ScanDevice) -> Result<DiskInfo, SmartctlError> {
-        let mut args = vec!["-a", "-j"];
-        if !device.dev_type.is_empty() {
-            args.extend(["-d", device.dev_type.as_str()]);
-        }
-        args.push(device.name.as_str());
-        parse_disk(&self.run(&args)?, device)
+        parse_disk(&self.run(&device_args(&["-a", "-j"], device))?, device)
+    }
+
+    /// Lance un auto-test. Le disque le fait seul ; `self_test_status` en suit la progression.
+    pub fn start_self_test(
+        &self,
+        device: &ScanDevice,
+        kind: SelfTestKind,
+    ) -> Result<(), SmartctlError> {
+        let out = self.run(&device_args(&["-t", kind.smartctl_arg(), "-j"], device))?;
+        // Bit 2 : le disque a refusé la commande (test non pris en charge, déjà en cours...).
+        RawOutput::parse(&out)?.check_exit(FATAL_EXIT_BITS | 0b100)
+    }
+
+    /// Interrompt l'auto-test en cours.
+    pub fn abort_self_test(&self, device: &ScanDevice) -> Result<(), SmartctlError> {
+        let out = self.run(&device_args(&["-X", "-j"], device))?;
+        RawOutput::parse(&out)?.check_exit(FATAL_EXIT_BITS | 0b100)
+    }
+
+    /// État de l'auto-test en cours, durées estimées et derniers résultats.
+    pub fn self_test_status(&self, device: &ScanDevice) -> Result<SelfTestStatus, SmartctlError> {
+        parse_self_test_status(&self.run(&device_args(&["-c", "-l", "selftest", "-j"], device))?)
     }
 
     /// Liste les disques puis lit chacun, sans doublons (voir `dedupe_disks`).
@@ -190,6 +211,16 @@ impl Smartctl {
             }),
         }
     }
+}
+
+/// Arguments d'une commande sur un disque : `base`, puis `-d <type>` si connu, puis le chemin.
+fn device_args<'a>(base: &[&'a str], device: &'a ScanDevice) -> Vec<&'a str> {
+    let mut args = base.to_vec();
+    if !device.dev_type.is_empty() {
+        args.extend(["-d", device.dev_type.as_str()]);
+    }
+    args.push(device.name.as_str());
+    args
 }
 
 #[cfg(test)]

@@ -1,0 +1,24 @@
+{
+  "json_format_version": [1, 0],
+  "smartctl": { "version": [7, 5], "exit_status": 0 },
+  "device": { "name": "/dev/sda", "info_name": "/dev/sda [SAT]", "type": "sat", "protocol": "ATA" },
+  "ata_smart_data": {
+    "offline_data_collection": { "status": { "value": 0, "string": "was never started" } },
+    "self_test": {
+      "status": { "value": 247, "string": "in progress, 70% remaining", "remaining_percent": 70 },
+      "polling_minutes": { "short": 2, "extended": 85 }
+    },
+    "capabilities": { "self_tests_supported": true, "conveyance_self_test_supported": false }
+  },
+  "ata_smart_self_test_log": {
+    "standard": {
+      "revision": 1,
+      "table": [
+        { "type": { "value": 1, "string": "Short offline" }, "status": { "value": 0, "string": "Completed without error", "passed": true }, "lifetime_hours": 3860 }
+      ],
+      "count": 1,
+      "error_count_total": 0,
+      "error_count_outdated": 0
+    }
+  }
+}

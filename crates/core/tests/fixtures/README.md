@@ -11,3 +11,4 @@
 | `real_virtio_unknown_type.json` | **Réel** : `smartctl -a -j /dev/vda` sur la même VM (type de périphérique non détecté, code de sortie 1). |
 
 Toute sortie réelle ajoutée ici doit avoir son numéro de série masqué.
+| `selftest_*.json` | Reconstruits : sorties de `smartctl -c -l selftest -j` (auto-test ATA en cours et historique avec échec, auto-test NVMe en cours et historique). Format selon smartctl 7.x. |

@@ -1,0 +1,16 @@
+{
+  "json_format_version": [1, 0],
+  "smartctl": { "version": [7, 5], "exit_status": 0 },
+  "device": { "name": "/dev/nvme0", "info_name": "/dev/nvme0", "type": "nvme", "protocol": "NVMe" },
+  "nvme_optional_admin_commands": { "value": 23, "self_test": true },
+  "nvme_self_test_log": {
+    "nsid": -1,
+    "current_self_test_operation": { "value": 0, "string": "No self-test in progress" },
+    "table": [
+      { "self_test_code": { "value": 2, "string": "Extended" }, "self_test_result": { "value": 7, "string": "Completed: failed segments" }, "power_on_hours": 2150 },
+      { "self_test_code": { "value": 1, "string": "Short" }, "self_test_result": { "value": 1, "string": "Aborted: Self-test command" }, "power_on_hours": 2149 },
+      { "self_test_code": { "value": 1, "string": "Short" }, "self_test_result": { "value": 0, "string": "Completed without error" }, "power_on_hours": 2140 },
+      { "self_test_code": { "value": 0, "string": "Reserved" }, "self_test_result": { "value": 15, "string": "Unused" } }
+    ]
+  }
+}

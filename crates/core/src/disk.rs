@@ -12,7 +12,7 @@ use crate::smartctl::SmartctlError;
 /// Seule version majeure du format JSON de smartctl prise en charge.
 pub const SUPPORTED_JSON_MAJOR: u32 = 1;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScanDevice {
     /// Chemin passé à smartctl (`/dev/sda`, `/dev/nvme0`, `/dev/pd0`).
     pub name: String,
@@ -165,13 +165,7 @@ pub fn parse_scan(json: &str) -> Result<Vec<ScanDevice>, SmartctlError> {
 /// Les bits 0 et 1 du code de sortie (échec de commande ou d'ouverture) deviennent une erreur.
 pub fn parse_disk(json: &str, fallback: &ScanDevice) -> Result<DiskInfo, SmartctlError> {
     let raw = RawOutput::parse(json)?;
-    let status = raw.exit_status();
-    if status & FATAL_EXIT_BITS != 0 {
-        return Err(SmartctlError::CommandFailed {
-            exit_status: status,
-            messages: raw.messages(),
-        });
-    }
+    raw.check_fatal()?;
     Ok(raw.into_disk(fallback))
 }
 
@@ -336,6 +330,22 @@ impl RawOutput {
             .as_ref()
             .and_then(|s| s.exit_status)
             .unwrap_or(0)
+    }
+
+    /// Erreur si un des bits de `mask` est levé dans le code de sortie.
+    pub(crate) fn check_exit(&self, mask: u8) -> Result<(), SmartctlError> {
+        let status = self.exit_status();
+        if status & mask != 0 {
+            return Err(SmartctlError::CommandFailed {
+                exit_status: status,
+                messages: self.messages(),
+            });
+        }
+        Ok(())
+    }
+
+    pub(crate) fn check_fatal(&self) -> Result<(), SmartctlError> {
+        self.check_exit(FATAL_EXIT_BITS)
     }
 
     pub(crate) fn messages(&self) -> Vec<String> {

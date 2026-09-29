@@ -287,7 +287,7 @@ Claude vérifie tout ce qui peut l'être sans matériel réel. Le propriétaire 
 - [x] Traduction française des attributs SMART courants (par nom smartctl, pas par ID : les ID 170+ changent de sens selon le fabricant). État par attribut : OK, à surveiller, échec.
 - [x] Score de santé par fabricant (SATA : 177, 202, 231, 233, SSD seulement) et `percentage_used` (NVMe).
 - [x] Vérifications de cohérence (module `checks` du moteur) : compteurs d'erreurs, écritures vs heures, heures vs démarrages (sessions très courtes ou très longues), usure vs écritures complètes, coupures brutales NVMe. Seuils en constantes, à ajuster sur de vrais disques.
-- [ ] Auto-tests SMART court et long avec suivi.
+- [x] Auto-tests SMART court et long avec suivi (module `selftest` : `-t short|long`, `-X`, état par `-c -l selftest`), progression, annulation, 5 derniers résultats. ATA et NVMe. Formats reconstruits : à confirmer sur un vrai test (NVMe sous Windows notamment).
 - [ ] Scan de surface en lecture seule.
 - [ ] Test de capacité réelle (espace libre, puis disque entier avec confirmation).
 - [ ] Tests unitaires du moteur sur des sorties `smartctl` enregistrées (SATA, NVMe, pont USB sans SMART, disque défaillant).
