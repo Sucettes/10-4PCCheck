@@ -88,7 +88,9 @@ function Sidebar({ info }: { info: Load<AppInfo> }) {
             </div>
             <div>Système : {info.value.os}</div>
             <div>
-              {info.value.smartctl.status === "ready" ? info.value.smartctl.version : "smartctl : indisponible"}
+              {info.value.smartctl.status === "ready"
+                ? info.value.smartctl.version.split(" ").slice(0, 2).join(" ")
+                : "smartctl : indisponible"}
             </div>
             <div>10-4 PCCheck {info.value.version}</div>
           </>

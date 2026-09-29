@@ -75,9 +75,12 @@ jobs:
           timeout 120 xvfb-run -a usb/linux/10-4-pccheck.AppImage --self-test "$PWD/selftest-linux.json"
           cat selftest-linux.json
           jq -e '.ok == true and .appInfo.smartctl.status == "ready"' selftest-linux.json
+      # Non bloquant : le quota de stockage d'artefacts du compte GitHub peut être atteint.
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: 10-4-pccheck-linux
+          retention-days: 7
           path: |
             usb/linux/
             selftest-linux.json
@@ -149,9 +152,21 @@ jobs:
           $bmp.Save("$PWD\screenshot-windows.png", [System.Drawing.Imaging.ImageFormat]::Png)
           Write-Host "écran : $($b.Width)x$($b.Height)"
           if (-not $p.HasExited) { $p.Kill() }
+          # Copie JPEG dans le journal (base64, lignes de 4000 car.) : consultable même sans artefact.
+          $codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq "image/jpeg" }
+          $params = New-Object System.Drawing.Imaging.EncoderParameters 1
+          $params.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter ([System.Drawing.Imaging.Encoder]::Quality, [long]70)
+          $ms = New-Object System.IO.MemoryStream
+          $bmp.Save($ms, $codec, $params)
+          $b64 = [Convert]::ToBase64String($ms.ToArray())
+          Write-Host "CAPTURE-DEBUT"
+          for ($i = 0; $i -lt $b64.Length; $i += 4000) { Write-Host ("CAPTURE:" + $b64.Substring($i, [Math]::Min(4000, $b64.Length - $i))) }
+          Write-Host "CAPTURE-FIN"
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: 10-4-pccheck-windows
+          retention-days: 7
           path: |
             usb/windows/
             selftest-windows.json

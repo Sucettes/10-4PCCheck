@@ -109,7 +109,7 @@ Phase bootable : Ventoy sur la clé. La partition de données (exFAT) garde l'ou
 ### Rapport
 - Source unique : le JSON du moteur.
 - HTML : fichier autonome (CSS et données en ligne), avec tri et recherche dans les tableaux.
-- PDF : **à décider au prototype**. Option recommandée : générer le PDF en Rust avec Typst embarqué (rendu identique sur Windows et Linux). Autre option : l'impression PDF de la webview, mais WebView2 et WebKitGTK n'ont pas la même API, ce qui donne deux chemins de code.
+- PDF : **décision (phase 0) : Typst embarqué en Rust** (crates `typst`, `typst-pdf`, `typst-as-lib`). Prototype mesuré : rapport lettre de 2 pages en 38 ms, polices intégrées au PDF, tableaux paginés avec en-têtes répétés, rendu identique sur Windows et Linux. Coût : binaire autonome de 50 Mo et 7 min de compilation à froid, sans importance sur une clé. L'impression de la webview a été écartée : WebView2 et WebKitGTK ont des API différentes, donc deux chemins de code.
 - Pied de page : version de l'outil, versions des outils tiers, SHA-256 du JSON pour détecter une modification.
 
 ### Règles du verdict
@@ -231,14 +231,41 @@ Première passe sur la maquette (2026-09-29) : 2 débordements corrigés (Accuei
 
 ### Phase 0 · Prototype de validation
 Objectif : lever les risques de la stack avant d'écrire les fonctionnalités.
-- [ ] Squelette Tauri 2 + React + TypeScript qui affiche une fenêtre.
-- [ ] Build Windows portable avec WebView2 fixe, lancé depuis une clé sur Windows 10 et 11 sans installation.
-- [ ] Élévation admin au lancement (manifeste) sur Windows 10 et 11.
-- [ ] AppImage Linux lancée depuis la clé sur Ubuntu LTS, Fedora et Linux Mint (élévation via `pkexec`).
-- [ ] Appel de `smartctl -j` embarqué depuis Rust et affichage brut du JSON.
-- [ ] Choix de la génération PDF (Typst embarqué ou impression webview).
+- [x] Squelette Tauri 2 + React + TypeScript qui affiche une fenêtre.
+- [x] Build Windows portable (exe + `tools/smartctl.exe`), lancé et vérifié en CI (Windows Server). Reste à confirmer sur Windows 10 et 11 depuis une clé : test final.
+- [ ] Runtime WebView2 « version fixe » dans `webview2/` : le code le prend en charge, non testé (WebView2 est déjà présent sur les runners).
+- [x] Manifeste `requireAdministrator` présent dans l'exe (vérifié en CI). Invite UAC réelle : test final.
+- [x] AppImage Linux : autotest et capture réussis sur Ubuntu 22.04, Fedora 44 et Linux Mint 22 (conteneurs, voir « Résultats »).
+- [ ] Élévation Linux via `pkexec` : non faite. L'app détecte les droits et affiche « Droits limités ». Décision de conception à prendre en phase 1 (voir « Suites »).
+- [x] Appel de `smartctl -j` embarqué depuis Rust et affichage dans l'interface.
+- [x] Choix de la génération PDF : Typst embarqué (section 4).
 
 Critère de sortie : les quatre points de lancement passent. Sinon, décision Electron.
+**État : Tauri validé sur Linux et en CI Windows. Pas de bascule vers Electron.** Reste le test final sur le PC du propriétaire.
+
+#### Résultats (2026-09-29)
+- Moteur : 17 tests (analyse JSON SATA/NVMe, disque défaillant, pont USB sans SMART, délai maximal, appels concurrents), dont 2 sur des sorties réelles de smartctl.
+- smartctl 7.5 compilé en statique (`tools/build-smartctl-linux.sh`), embarqué dans l'AppImage.
+- AppImage de 82 Mo construite sur Ubuntu 22.04 (`tools/build-appimage.sh`). Testée par `tools/dev/test-appimage-distros.sh`.
+  - Constat : sur une image de conteneur minimale, il manque fontconfig, freetype, X11, xcb, Wayland, fribidi, harfbuzz et Mesa. C'est normal : la liste d'exclusion AppImage suppose ces bibliothèques présentes sur tout bureau Linux. Les tests utilisent donc des images de bureau (Ubuntu 22.04 + GTK3 et Mesa, Fedora 44 XFCE, Mint 22).
+- CI Windows : build, manifeste vérifié, autotest réussi en mode élevé, lecture réelle des disques virtuels Azure.
+- Interface vérifiée par captures d'écran sur les 3 distros et avec le simulateur `tools/dev/fake-smartctl` (4 cas de disques).
+
+#### Suites identifiées
+- Élévation Linux : lancer l'interface en utilisateur et un assistant privilégié unique via `pkexec` (une seule demande de mot de passe). Lancer toute l'interface en root pose problème sous Wayland.
+- Disques virtuels et certains SCSI : smartctl renvoie 0 °C quand la température n'existe pas. À traiter comme « inconnue » en phase 1.
+- Quota de stockage d'artefacts GitHub du compte atteint le 2026-09-29 : les téléchargements CI sont non bloquants. Pour récupérer les fichiers de la clé, libérer le quota (supprimer d'anciens artefacts) ou publier via une release GitHub.
+- Réseau de la session cloud de Claude : l'étape finale de linuxdeploy échoue derrière le proxy ; `tools/build-appimage.sh` accepte un runtime AppImage fourni à la main (voir l'en-tête du script). Aucun impact en CI.
+
+#### Test final sur le PC du propriétaire (environ 10 minutes)
+1. Récupérer les fichiers produits par la CI (artefacts `10-4-pccheck-windows` et `10-4-pccheck-linux`) et les copier sur la clé :
+   `windows/10-4-pccheck.exe`, `windows/tools/smartctl.exe`, `linux/10-4-pccheck.AppImage`.
+2. Brancher la clé sur le PC Windows et lancer `windows/10-4-pccheck.exe`.
+3. SmartScreen : « Informations complémentaires », puis « Exécuter quand même ». Noter si Defender bloque.
+4. Invite UAC : accepter. Vérifier « Mode administrateur » en bas à gauche.
+5. Vérifier que le Samsung 860 EVO apparaît avec température, heures (environ 3 864 h) et état « Bon ».
+6. Si un boîtier USB est disponible, y brancher un disque et vérifier s'il est lu ou marqué « Illisible ».
+7. Envoyer à Claude une capture d'écran et, si possible, la sortie de `windows\tools\smartctl.exe -a -j /dev/sda` (invite de commandes en administrateur) : elle deviendra un vrai jeu de test, numéro de série masqué.
 
 #### Qui vérifie quoi
 Claude vérifie tout ce qui peut l'être sans matériel réel. Le propriétaire ne fait qu'un test final sur sa machine.
@@ -314,4 +341,5 @@ Claude vérifie tout ce qui peut l'être sans matériel réel. Le propriétaire 
 
 | Date | Travail |
 |---|---|
-| 2026-09-29 | Analyse de faisabilité, décisions (section 2), maquette UI (version 1 sombre, version 2 style bureau rejetée, version 1 passée en clair retenue), choix des boîtiers USB, création de ce plan. Aucun code écrit. |
+| 2026-09-29 | Analyse de faisabilité, décisions (section 2), maquette UI (version 1 sombre, version 2 style bureau rejetée, version 1 passée en clair retenue), choix des boîtiers USB, création de ce plan. |
+| 2026-09-29 | Phase 0 : moteur Rust + smartctl, app Tauri + React, smartctl statique, AppImage testée sur 3 distros, CI Windows et Linux, décision PDF (Typst). Reste le test final sur le PC du propriétaire. |

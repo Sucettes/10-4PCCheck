@@ -52,7 +52,7 @@ body {
   width: 36px; height: 36px; border-radius: 9px;
   background: var(--accent); color: #fff;
   display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-display); font-weight: 700; font-size: 13px;
+  font-family: var(--font-display); font-weight: 700; font-size: 12px; letter-spacing: -0.02em;
 }
 .brand-name { font-family: var(--font-display); font-weight: 600; font-size: 18px; }
 .nav-item {

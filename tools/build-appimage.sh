@@ -6,6 +6,11 @@
 # Prérequis sur l'hôte : Docker, Rust (rustup) et Node installés, tools/linux/smartctl présent
 # (tools/build-smartctl-linux.sh). Les chaînes d'outils de l'hôte sont montées dans le conteneur.
 # Résultat : dist-usb/linux/10-4-pccheck.AppImage
+#
+# Réseau filtré (proxy) : l'étape finale de linuxdeploy télécharge le runtime AppImage sans passer
+# par l'autorité de certification du proxy et échoue. Dans ce cas, fournir le runtime et appimagetool
+# téléchargés à la main, et le script termine l'empaquetage lui-même :
+#   APPIMAGE_RUNTIME_FILE=/chemin/runtime-x86_64 APPIMAGETOOL=/chemin/appimagetool tools/build-appimage.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -24,6 +29,10 @@ if [ -n "${SSL_CERT_FILE:-}" ] && [ -f "$SSL_CERT_FILE" ]; then
   EXTRA+=(-v "$SSL_CERT_FILE:/etc/ssl/certs/extra-ca.crt:ro")
 fi
 
+BUNDLE_DIR="$ROOT/target/jammy/release/bundle/appimage"
+rm -rf "$BUNDLE_DIR"
+
+set +e
 docker run --rm --network host "${EXTRA[@]}" \
   -v "$ROOT:$ROOT" -w "$ROOT/app" \
   -v "$NODE_DIR:$NODE_DIR:ro" \
@@ -38,13 +47,27 @@ docker run --rm --network host "${EXTRA[@]}" \
       libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev ca-certificates >/dev/null
     if [ -f /etc/ssl/certs/extra-ca.crt ]; then
       cat /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/extra-ca.crt > /tmp/ca.crt
-      export SSL_CERT_FILE=/tmp/ca.crt CARGO_HTTP_CAINFO=/tmp/ca.crt
+      export SSL_CERT_FILE=/tmp/ca.crt CARGO_HTTP_CAINFO=/tmp/ca.crt CURL_CA_BUNDLE=/tmp/ca.crt
     fi
     npx tauri build --bundles appimage
   '
+BUILD_STATUS=$?
+set -e
+
+if [ "$BUILD_STATUS" -ne 0 ]; then
+  APPDIR="$(find "$BUNDLE_DIR" -maxdepth 1 -name "*.AppDir" 2>/dev/null | head -1)"
+  if [ -n "${APPIMAGE_RUNTIME_FILE:-}" ] && [ -n "${APPIMAGETOOL:-}" ] && [ -n "$APPDIR" ]; then
+    echo "Empaquetage final avec le runtime fourni ($APPIMAGE_RUNTIME_FILE)"
+    APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 "$APPIMAGETOOL" --no-appstream \
+      --runtime-file "$APPIMAGE_RUNTIME_FILE" "$APPDIR" "$BUNDLE_DIR/10-4-pccheck.AppImage"
+  else
+    echo "ERREUR : la construction a échoué (code $BUILD_STATUS)" >&2
+    exit "$BUILD_STATUS"
+  fi
+fi
 
 OUT="$ROOT/dist-usb/linux"
 mkdir -p "$OUT"
-cp "$ROOT"/target/jammy/release/bundle/appimage/*.AppImage "$OUT/10-4-pccheck.AppImage"
+cp "$BUNDLE_DIR"/*.AppImage "$OUT/10-4-pccheck.AppImage"
 chmod 755 "$OUT/10-4-pccheck.AppImage"
 ls -la "$OUT"
