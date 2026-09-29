@@ -1,0 +1,8 @@
+/target/
+node_modules/
+/app/dist/
+/app/src-tauri/gen/
+# Binaires tiers : récupérés par les scripts de tools/, jamais versionnés.
+/tools/linux/
+/tools/windows/
+/dist-usb/

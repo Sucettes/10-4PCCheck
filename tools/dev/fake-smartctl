@@ -1,0 +1,24 @@
+#!/bin/sh
+# Simulateur de smartctl pour le développement et les tests d'interface.
+# Sert les sorties de crates/core/tests/fixtures/ selon le disque demandé.
+# Usage : PCCHECK_SMARTCTL=tools/dev/fake-smartctl pccheck
+set -eu
+FIXTURES="$(cd "$(dirname "$0")/../../crates/core/tests/fixtures" && pwd)"
+
+case "$*" in
+  --version) echo "smartctl 7.5 (simulateur de développement)" ;;
+  "--scan-open -j")
+    cat <<'EOF'
+{"json_format_version":[1,0],"smartctl":{"exit_status":0},"devices":[
+ {"name":"/dev/sda","info_name":"/dev/sda [SAT]","type":"sat","protocol":"ATA"},
+ {"name":"/dev/nvme0","info_name":"/dev/nvme0","type":"nvme","protocol":"NVMe"},
+ {"name":"/dev/sdb","info_name":"/dev/sdb [SAT]","type":"sat","protocol":"ATA"},
+ {"name":"/dev/sdc","info_name":"/dev/sdc","type":"","protocol":"SCSI"}]}
+EOF
+    ;;
+  *"/dev/sda") cat "$FIXTURES/sata_samsung_860evo.json" ;;
+  *"/dev/nvme0") cat "$FIXTURES/nvme_generic.json" ;;
+  *"/dev/sdb") cat "$FIXTURES/hdd_failing.json"; exit 88 ;;
+  *"/dev/sdc") cat "$FIXTURES/usb_bridge_unsupported.json"; exit 1 ;;
+  *) echo "fake-smartctl : arguments non gérés : $*" >&2; exit 1 ;;
+esac

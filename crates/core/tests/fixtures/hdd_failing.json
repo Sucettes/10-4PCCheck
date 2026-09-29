@@ -1,0 +1,23 @@
+{
+  "json_format_version": [1, 0],
+  "smartctl": { "version": [7, 5], "exit_status": 88 },
+  "device": { "name": "/dev/sdb", "info_name": "/dev/sdb [SAT]", "type": "sat", "protocol": "ATA" },
+  "model_name": "WDC WD10EZEX-00BN5A0",
+  "serial_number": "WD-WCC3FXXXXXXX",
+  "firmware_version": "01.01A01",
+  "user_capacity": { "blocks": 1953525168, "bytes": 1000204886016 },
+  "rotation_rate": 7200,
+  "smart_support": { "available": true, "enabled": true },
+  "smart_status": { "passed": false },
+  "ata_smart_attributes": {
+    "revision": 16,
+    "table": [
+      { "id": 5, "name": "Reallocated_Sector_Ct", "value": 1, "worst": 1, "thresh": 140, "when_failed": "now", "flags": { "value": 51, "prefailure": true }, "raw": { "value": 3912, "string": "3912" } },
+      { "id": 9, "name": "Power_On_Hours", "value": 42, "worst": 42, "thresh": 0, "when_failed": "", "flags": { "value": 50, "prefailure": false }, "raw": { "value": 42611, "string": "42611" } },
+      { "id": 197, "name": "Current_Pending_Sector", "value": 200, "worst": 199, "thresh": 0, "when_failed": "", "flags": { "value": 50, "prefailure": false }, "raw": { "value": 57, "string": "57" } }
+    ]
+  },
+  "power_on_time": { "hours": 42611 },
+  "power_cycle_count": 1874,
+  "temperature": { "current": 41 }
+}

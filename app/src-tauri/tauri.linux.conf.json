@@ -1,0 +1,8 @@
+{
+  "bundle": {
+    "targets": ["appimage"],
+    "resources": {
+      "../../tools/linux/smartctl": "tools/smartctl"
+    }
+  }
+}

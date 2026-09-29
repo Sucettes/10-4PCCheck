@@ -1,0 +1,112 @@
+/* Palette et règles : docs/PLAN.md, section 6. Mode clair uniquement. */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-soft: #f1f3f6;
+  --border: #e3e6eb;
+  --border-strong: #cfd5de;
+  --text: #1a1d23;
+  --text-2: #5d6574;
+  --accent: #2459d6;
+  --active-bg: #e8effc;
+  --active-text: #1f4fb8;
+  --good-bg: #e3f5ea;
+  --good-text: #177a47;
+  --good-dot: #1f9d5b;
+  --warn-bg: #fff3d6;
+  --warn-text: #8a5a00;
+  --warn-border: #f0d48a;
+  --bad-bg: #fdeceb;
+  --bad-text: #b42318;
+  --bad-border: #f0b8b4;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-body: "IBM Plex Sans", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+}
+
+.layout { display: flex; min-height: 100vh; }
+
+.sidebar {
+  width: 232px;
+  flex-shrink: 0;
+  padding: 24px 16px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 24px; }
+.brand-mark {
+  width: 36px; height: 36px; border-radius: 9px;
+  background: var(--accent); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display); font-weight: 700; font-size: 13px;
+}
+.brand-name { font-family: var(--font-display); font-weight: 600; font-size: 18px; }
+.nav-item {
+  display: flex; align-items: center; height: 44px; padding: 0 12px; border-radius: 8px;
+  color: #4b5260; text-decoration: none;
+}
+.nav-item.active { background: var(--active-bg); color: var(--active-text); font-weight: 500; }
+.env {
+  margin-top: auto; padding: 14px 12px; border-radius: 10px;
+  background: var(--bg); border: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--text-2);
+}
+.env-admin { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.env-admin .dot { width: 8px; height: 8px; border-radius: 4px; }
+.env-admin.ok { color: var(--good-text); }
+.env-admin.ok .dot { background: var(--good-dot); }
+.env-admin.warn { color: var(--warn-text); }
+.env-admin.warn .dot { background: #e0a100; }
+
+.main { flex-grow: 1; padding: 32px 40px; display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.page-header { display: flex; justify-content: space-between; align-items: flex-end; }
+.eyebrow { font-size: 13px; color: var(--text-2); }
+h1 { margin: 4px 0 0; font-family: var(--font-display); font-size: 28px; font-weight: 600; }
+h2 { margin: 0; font-family: var(--font-display); font-size: 18px; font-weight: 600; }
+
+.btn {
+  height: 44px; padding: 0 18px; border-radius: 10px;
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--text);
+  font: inherit; font-weight: 500; cursor: pointer;
+}
+.btn:disabled { color: var(--text-2); cursor: default; }
+
+.banner { padding: 14px 18px; border-radius: 12px; border: 1px solid; line-height: 1.45; }
+.banner-warn { background: #fff8e6; border-color: var(--warn-border); color: #5c4a1e; }
+.banner-bad { background: var(--bad-bg); border-color: var(--bad-border); color: var(--bad-text); }
+
+.muted { color: var(--text-2); margin: 0; }
+.text-bad { color: var(--bad-text); }
+.mono { font-family: var(--font-mono); }
+
+.disk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 14px; }
+.card {
+  padding: 20px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.pill { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.pill-good { background: var(--good-bg); color: var(--good-text); }
+.pill-bad { background: var(--bad-bg); color: var(--bad-text); }
+.pill-neutral { background: var(--surface-soft); color: var(--text-2); }
+
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 6px 0 0; }
+.stats dt { font-size: 12px; color: var(--text-2); }
+.stats dd { margin: 2px 0 0; font-family: var(--font-display); font-size: 18px; font-weight: 600; }
+.stats dd.mono { font-family: var(--font-mono); font-size: 14px; font-weight: 400; }
+
+.warnings { margin: 4px 0 0; padding-left: 18px; color: var(--warn-text); line-height: 1.5; }

@@ -1,0 +1,12 @@
+[package]
+name = "pccheck-core"
+description = "Moteur de collecte de 10-4 PCCheck : appels smartctl et analyse des résultats."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

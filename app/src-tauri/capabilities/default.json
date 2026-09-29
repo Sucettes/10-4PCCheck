@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissions de la fenêtre principale. Les commandes de l'app (app_info, scan_disks, self_test_report) sont autorisées par défaut.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
