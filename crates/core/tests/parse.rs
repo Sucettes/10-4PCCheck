@@ -159,3 +159,28 @@ fn real_virtio_disk_without_smart_is_a_command_failure() {
         other => panic!("attendu CommandFailed, obtenu {other:?}"),
     }
 }
+
+#[test]
+fn zero_temperature_means_not_reported() {
+    let json = r#"{"json_format_version":[1,0],"device":{"name":"/dev/sda","type":"scsi","protocol":"SCSI"},
+        "model_name":"Msft Virtual Disk","temperature":{"current":0},"smartctl":{"exit_status":4}}"#;
+    let d = parse_disk(json, &fallback("/dev/sda")).unwrap();
+    assert_eq!(d.temperature_c, None);
+    assert_eq!(d.protocol, Protocol::Scsi);
+    assert_eq!(
+        d.warnings.len(),
+        1,
+        "le bit 2 du code de sortie reste signalé"
+    );
+}
+
+#[test]
+fn negative_temperature_is_kept() {
+    let json = r#"{"json_format_version":[1,0],"temperature":{"current":-5}}"#;
+    assert_eq!(
+        parse_disk(json, &fallback("/dev/sda"))
+            .unwrap()
+            .temperature_c,
+        Some(-5)
+    );
+}

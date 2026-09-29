@@ -248,12 +248,13 @@ Critère de sortie : les quatre points de lancement passent. Sinon, décision El
 - smartctl 7.5 compilé en statique (`tools/build-smartctl-linux.sh`), embarqué dans l'AppImage.
 - AppImage de 82 Mo construite sur Ubuntu 22.04 (`tools/build-appimage.sh`). Testée par `tools/dev/test-appimage-distros.sh`.
   - Constat : sur une image de conteneur minimale, il manque fontconfig, freetype, X11, xcb, Wayland, fribidi, harfbuzz et Mesa. C'est normal : la liste d'exclusion AppImage suppose ces bibliothèques présentes sur tout bureau Linux. Les tests utilisent donc des images de bureau (Ubuntu 22.04 + GTK3 et Mesa, Fedora 44 XFCE, Mint 22).
-- CI Windows : build, manifeste vérifié, autotest réussi en mode élevé, lecture réelle des disques virtuels Azure.
+- CI Windows : build, manifeste vérifié, autotest réussi en mode élevé, lecture réelle des disques virtuels Azure. Capture d'écran Windows relue (copiée en base64 dans le journal CI).
 - Interface vérifiée par captures d'écran sur les 3 distros et avec le simulateur `tools/dev/fake-smartctl` (4 cas de disques).
 
 #### Suites identifiées
 - Élévation Linux : lancer l'interface en utilisateur et un assistant privilégié unique via `pkexec` (une seule demande de mot de passe). Lancer toute l'interface en root pose problème sous Wayland.
-- Disques virtuels et certains SCSI : smartctl renvoie 0 °C quand la température n'existe pas. À traiter comme « inconnue » en phase 1.
+- Disques virtuels et certains SCSI : smartctl renvoie 0 °C quand la température n'existe pas. Corrigé : 0 °C est traité comme « inconnue ».
+- Écrans de 1024 x 768 et 1366 x 768 : la fenêtre (1280 x 720) se réduit à l'écran et se centre au démarrage, le contenu défile. Vérifié par captures à 1024 x 768, 1366 x 768 et 1920 x 1080.
 - Quota de stockage d'artefacts GitHub du compte atteint le 2026-09-29 : les téléchargements CI sont non bloquants. Pour récupérer les fichiers de la clé, libérer le quota (supprimer d'anciens artefacts) ou publier via une release GitHub.
 - Réseau de la session cloud de Claude : l'étape finale de linuxdeploy échoue derrière le proxy ; `tools/build-appimage.sh` accepte un runtime AppImage fourni à la main (voir l'en-tête du script). Aucun impact en CI.
 

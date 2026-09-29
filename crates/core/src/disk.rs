@@ -297,7 +297,9 @@ impl RawOutput {
             smart_available: self.smart_support.as_ref().and_then(|s| s.available),
             smart_enabled: self.smart_support.as_ref().and_then(|s| s.enabled),
             smart_passed: self.smart_status.and_then(|s| s.passed),
-            temperature_c: self.temperature.and_then(|t| t.current),
+            // smartctl renvoie 0 quand le disque n'expose pas de température (disques virtuels,
+            // certains SCSI). Un disque en marche à exactement 0 °C n'est pas plausible.
+            temperature_c: self.temperature.and_then(|t| t.current).filter(|&c| c != 0),
             power_on_hours: self.power_on_time.and_then(|p| p.hours),
             power_cycles: self.power_cycle_count,
             ata_attributes: self

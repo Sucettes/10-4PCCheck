@@ -15,9 +15,9 @@
       {
         "title": "10-4 PCCheck",
         "width": 1280,
-        "height": 820,
-        "minWidth": 1024,
-        "minHeight": 680
+        "height": 720,
+        "minWidth": 800,
+        "minHeight": 560
       }
     ],
     "security": {
