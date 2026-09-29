@@ -30,7 +30,7 @@ docker run --rm --network host "${EXTRA[@]}" \
   -v "$RUSTUP_DIR:/root/.rustup" -v "$CARGO_DIR:/root/.cargo" \
   -e PATH="/root/.cargo/bin:$NODE_DIR/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
   -e CARGO_TARGET_DIR="$ROOT/target/jammy" \
-  -e NO_STRIP=true \
+  -e NO_STRIP=true -e APPIMAGE_EXTRACT_AND_RUN=1 \
   ubuntu:22.04 bash -euo pipefail -c '
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq >/dev/null

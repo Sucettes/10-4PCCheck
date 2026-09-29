@@ -1,8 +1,9 @@
 name: CI
 
+# Branche de travail : couverte par pull_request (un seul déclenchement, pas de minutes en double).
 on:
   push:
-    branches: [master, "claude/**"]
+    branches: [master]
   pull_request:
   workflow_dispatch:
 

@@ -12,12 +12,13 @@ URL="https://downloads.sourceforge.net/project/smartmontools/smartmontools/${VER
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+trap 'rm -rf "$WORK" 2>/dev/null || true' EXIT
 
 curl -fsSL --retry 3 -o "$WORK/src.tgz" "$URL"
 echo "${SHA256}  $WORK/src.tgz" | sha256sum -c -
 
-docker run --rm --network host -v "$WORK:/w" ubuntu:22.04 bash -euo pipefail -c '
+# Le conteneur tourne en root : il rend ses fichiers à l'utilisateur de l'hôte avant de quitter.
+docker run --rm --network host -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" -v "$WORK:/w" ubuntu:22.04 bash -euo pipefail -c '
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -qq >/dev/null
   apt-get install -y -qq g++ make >/dev/null
@@ -26,6 +27,7 @@ docker run --rm --network host -v "$WORK:/w" ubuntu:22.04 bash -euo pipefail -c 
   make -j"$(nproc)" smartctl >/dev/null
   strip smartctl
   cp smartctl /w/smartctl
+  chown -R "$HOST_UID:$HOST_GID" /w
 '
 
 mkdir -p "$ROOT/tools/linux"
