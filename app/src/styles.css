@@ -113,3 +113,26 @@ h2 { margin: 0; font-family: var(--font-display); font-size: 18px; font-weight: 
 .stats dd.mono { font-family: var(--font-mono); font-size: 14px; font-weight: 400; }
 
 .warnings { margin: 4px 0 0; padding-left: 18px; color: var(--warn-text); line-height: 1.5; }
+
+/* Info-bulles (Hint.tsx) : survol et focus clavier. La bulle est un enfant du déclencheur,
+   donc la survoler la garde ouverte ; le padding-top fait le pont entre les deux. */
+.hint { position: relative; display: inline-flex; cursor: help; border-radius: 4px; outline: none; }
+.hint:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+dt .hint { text-decoration: underline dotted var(--border-strong); text-underline-offset: 3px; }
+.hint-bubble {
+  position: absolute; top: 100%; z-index: 10; padding-top: 8px; width: 320px;
+  visibility: hidden; opacity: 0; transition: opacity 120ms ease, visibility 0s linear 120ms;
+}
+.hint-start { left: 0; }
+.hint-end { right: 0; }
+.hint:hover .hint-bubble, .hint:focus-visible .hint-bubble {
+  visibility: visible; opacity: 1; transition-delay: 250ms, 250ms;
+}
+.hint-box {
+  display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 10px;
+  background: var(--text); color: #f1f3f6; box-shadow: 0 6px 20px rgba(26, 29, 35, 0.18);
+  font-family: var(--font-body); font-size: 13px; font-weight: 400; line-height: 1.45;
+  text-align: left; white-space: normal; text-decoration: none;
+}
+.hint-box strong { font-weight: 600; color: #ffffff; }
+.hint-here { margin-top: 2px; padding-top: 8px; border-top: 1px solid #3a3f4a; color: #ffffff; font-weight: 500; }

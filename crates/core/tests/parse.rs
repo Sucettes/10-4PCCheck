@@ -1,4 +1,6 @@
-use pccheck_core::{parse_disk, parse_scan, MediaKind, Protocol, ScanDevice, SmartctlError};
+use pccheck_core::{
+    dedupe_disks, parse_disk, parse_scan, DiskEntry, MediaKind, Protocol, ScanDevice, SmartctlError,
+};
 
 fn fixture(name: &str) -> String {
     let path = format!("{}/tests/fixtures/{name}", env!("CARGO_MANIFEST_DIR"));
@@ -36,6 +38,7 @@ fn sata_ssd_is_parsed_like_crystaldiskinfo() {
     assert_eq!(lbas.raw_value, 13_994_098_713);
     assert!(d.warnings.is_empty());
     assert!(d.nvme_health.is_none());
+    assert_eq!(d.life_remaining_pct, Some(97), "attribut 177 de Samsung");
 }
 
 #[test]
@@ -48,6 +51,7 @@ fn nvme_uses_total_capacity_and_health_log() {
     assert_eq!(h.percentage_used, Some(2));
     assert_eq!(h.bytes_written(), Some(9_876_543 * 512_000));
     assert!(d.ata_attributes.is_empty());
+    assert_eq!(d.life_remaining_pct, Some(98), "100 - percentage_used");
 }
 
 #[test]
@@ -65,6 +69,10 @@ fn failing_hdd_keeps_data_and_lists_warnings() {
     assert_eq!(
         hours.when_failed, None,
         "une chaîne vide ne doit pas compter comme un échec"
+    );
+    assert_eq!(
+        d.life_remaining_pct, None,
+        "pas d'usure mesurable sur un disque dur"
     );
 }
 
@@ -183,4 +191,54 @@ fn negative_temperature_is_kept() {
             .temperature_c,
         Some(-5)
     );
+}
+
+/// Entrée lue depuis un fichier de test, placée sur le chemin `name`.
+fn entry(name: &str, fixture_name: &str) -> DiskEntry {
+    let mut info = parse_disk(&fixture(fixture_name), &fallback(name)).unwrap();
+    info.device = fallback(name);
+    DiskEntry {
+        device: fallback(name),
+        info: Some(info),
+        error: None,
+    }
+}
+
+fn names(entries: &[DiskEntry]) -> Vec<&str> {
+    entries.iter().map(|e| e.device.name.as_str()).collect()
+}
+
+#[test]
+fn same_disk_via_intel_rst_is_listed_once_on_standard_path() {
+    // Cas réel : un disque derrière le pilote Intel RST vu en /dev/sda et en /dev/csmi0,4.
+    let entries = vec![
+        entry("/dev/csmi0,4", "sata_samsung_860evo.json"),
+        entry("/dev/sdc", "nvme_generic.json"),
+        entry("/dev/sda", "sata_samsung_860evo.json"),
+    ];
+    assert_eq!(names(&dedupe_disks(entries)), ["/dev/sda", "/dev/sdc"]);
+}
+
+#[test]
+fn csmi_duplicate_after_standard_path_is_dropped() {
+    let entries = vec![
+        entry("/dev/sda", "sata_samsung_860evo.json"),
+        entry("/dev/csmi0,4", "sata_samsung_860evo.json"),
+    ];
+    assert_eq!(names(&dedupe_disks(entries)), ["/dev/sda"]);
+}
+
+#[test]
+fn disks_without_identity_are_never_merged() {
+    let mut a = entry("/dev/sda", "sata_samsung_860evo.json");
+    let mut b = entry("/dev/sdb", "sata_samsung_860evo.json");
+    a.info.as_mut().unwrap().serial = None;
+    b.info.as_mut().unwrap().serial = Some("  ".into());
+    let unreadable = |name: &str| DiskEntry {
+        device: fallback(name),
+        info: None,
+        error: None,
+    };
+    let entries = vec![a, b, unreadable("/dev/sdc"), unreadable("/dev/sdd")];
+    assert_eq!(dedupe_disks(entries).len(), 4);
 }

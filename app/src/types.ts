@@ -51,6 +51,7 @@ export interface DiskInfo {
   power_cycles: number | null;
   ata_attributes: AtaAttribute[];
   nvme_health: NvmeHealth | null;
+  life_remaining_pct: number | null;
   exit_status: number;
   warnings: string[];
 }

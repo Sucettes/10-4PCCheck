@@ -6,7 +6,7 @@ mod self_test;
 
 use std::path::{Path, PathBuf};
 
-use pccheck_core::{DiskInfo, ScanDevice, Smartctl, SmartctlError};
+use pccheck_core::{DiskEntry, Smartctl, SmartctlError};
 use serde::Serialize;
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, State, WebviewWindow};
 
@@ -45,13 +45,6 @@ struct AppInfo {
     smartctl: SmartctlStatus,
 }
 
-#[derive(Serialize)]
-struct DiskEntry {
-    device: ScanDevice,
-    info: Option<DiskInfo>,
-    error: Option<SmartctlError>,
-}
-
 #[tauri::command]
 async fn app_info(state: State<'_, AppState>) -> Result<AppInfo, CommandError> {
     let smartctl = match state.smartctl.clone() {
@@ -73,31 +66,11 @@ async fn app_info(state: State<'_, AppState>) -> Result<AppInfo, CommandError> {
     })
 }
 
-/// Liste les disques puis lit chacun. Un disque illisible (pont USB sans SMART, par exemple)
-/// n'empêche pas la lecture des autres : son erreur est rendue avec lui.
+/// Liste et lit tous les disques (voir `Smartctl::scan_all`).
 #[tauri::command]
 async fn scan_disks(state: State<'_, AppState>) -> Result<Vec<DiskEntry>, CommandError> {
     let smartctl = state.smartctl.clone()?;
-    let entries = blocking(move || -> Result<Vec<DiskEntry>, SmartctlError> {
-        let devices = smartctl.scan()?;
-        Ok(devices
-            .into_iter()
-            .map(|device| match smartctl.info(&device) {
-                Ok(info) => DiskEntry {
-                    device,
-                    info: Some(info),
-                    error: None,
-                },
-                Err(error) => DiskEntry {
-                    device,
-                    info: None,
-                    error: Some(error),
-                },
-            })
-            .collect())
-    })
-    .await??;
-    Ok(entries)
+    Ok(blocking(move || smartctl.scan_all()).await??)
 }
 
 #[tauri::command]

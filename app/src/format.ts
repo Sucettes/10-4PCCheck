@@ -42,9 +42,12 @@ export function smartctlErrorMessage(e: SmartctlError): string {
     case "unsupported_json_version":
       return `Version du format smartctl non prise en charge : ${e.detail.join(".")}`;
     case "command_failed":
-      return e.detail.messages.length > 0
-        ? e.detail.messages.join(" ")
-        : `smartctl a échoué (code ${e.detail.exit_status}).`;
+      if (e.detail.messages.length > 0) return e.detail.messages.join(" ");
+      // Bit 1 : ouverture du périphérique impossible ou pas de réponse à IDENTIFY.
+      if (e.detail.exit_status & 0b10) {
+        return "Le périphérique ne répond pas aux commandes SMART. Souvent une clé USB, un lecteur de cartes ou un boîtier USB non pris en charge.";
+      }
+      return `smartctl a échoué (code ${e.detail.exit_status}).`;
   }
 }
 

@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
 import { getAppInfo, isCommandError, reportSelfTest, scanDisks } from "./api";
+import { Hint } from "./Hint";
+import {
+  firmwareHint,
+  powerCyclesHint,
+  powerOnHoursHint,
+  smartStatusHint,
+  temperatureHint,
+  unreadableHint,
+} from "./hints";
 import { commandErrorMessage, formatBytes, formatNumber, mediaLabel, smartctlErrorMessage } from "./format";
 import type { AppInfo, DiskEntry, DiskInfo } from "./types";
 
@@ -122,7 +131,9 @@ function DiskList({ disks }: { disks: Load<DiskEntry[]> }) {
             <>
               <div className="card-head">
                 <h2>{entry.device.info_name}</h2>
-                <span className="pill pill-neutral">Illisible</span>
+                <Hint hint={unreadableHint}>
+                  <span className="pill pill-neutral">Illisible</span>
+                </Hint>
               </div>
               <p className="muted">{entry.error ? smartctlErrorMessage(entry.error) : "Erreur inconnue."}</p>
             </>
@@ -144,26 +155,41 @@ function DiskCard({ disk }: { disk: DiskInfo }) {
     <>
       <div className="card-head">
         <h2>{disk.model ?? disk.device.info_name}</h2>
-        <span className={`pill ${verdict.cls}`}>{verdict.label}</span>
+        <Hint hint={smartStatusHint(disk)}>
+          <span className={`pill ${verdict.cls}`}>
+            {verdict.label}
+            {disk.life_remaining_pct !== null && ` · ${disk.life_remaining_pct} %`}
+          </span>
+        </Hint>
       </div>
       <p className="muted">
         {disk.device.info_name} · {mediaLabel(disk)} · {formatBytes(disk.capacity_bytes)}
       </p>
       <dl className="stats">
         <div>
-          <dt>Température</dt>
+          <dt>
+            <Hint hint={temperatureHint(disk)}>Température</Hint>
+          </dt>
           <dd>{formatNumber(disk.temperature_c, " °C")}</dd>
         </div>
         <div>
-          <dt>Heures</dt>
+          <dt>
+            <Hint hint={powerOnHoursHint(disk)}>Heures</Hint>
+          </dt>
           <dd>{formatNumber(disk.power_on_hours, " h")}</dd>
         </div>
         <div>
-          <dt>Démarrages</dt>
+          <dt>
+            <Hint hint={powerCyclesHint(disk)}>Démarrages</Hint>
+          </dt>
           <dd>{formatNumber(disk.power_cycles)}</dd>
         </div>
         <div>
-          <dt>Firmware</dt>
+          <dt>
+            <Hint hint={firmwareHint}>
+              Firmware
+            </Hint>
+          </dt>
           <dd className="mono">{disk.firmware ?? "Inconnu"}</dd>
         </div>
       </dl>

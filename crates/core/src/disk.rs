@@ -90,10 +90,49 @@ pub struct DiskInfo {
     pub power_cycles: Option<u64>,
     pub ata_attributes: Vec<AtaAttribute>,
     pub nvme_health: Option<NvmeHealth>,
+    /// Vie restante estimée d'un SSD, de 0 à 100. `None` si le disque ne l'expose pas (disques durs).
+    pub life_remaining_pct: Option<u8>,
     /// Code de sortie brut de smartctl (masque de bits).
     pub exit_status: u8,
     /// Avertissements lisibles tirés du code de sortie et des messages de smartctl.
     pub warnings: Vec<String>,
+}
+
+/// Un disque listé par le scan, avec ses données ou l'erreur de lecture. Un disque illisible
+/// (pont USB sans SMART, par exemple) n'empêche pas la lecture des autres.
+#[derive(Debug, Clone, Serialize)]
+pub struct DiskEntry {
+    pub device: ScanDevice,
+    pub info: Option<DiskInfo>,
+    pub error: Option<SmartctlError>,
+}
+
+/// Retire les doublons d'un même disque physique. Sous Windows, avec le pilote Intel RST,
+/// smartctl voit un disque deux fois : `/dev/sdX` et `/dev/csmiN,P` (interface CSMI du pilote).
+/// Identité : modèle + numéro de série. On garde le chemin standard plutôt que CSMI, et l'ordre
+/// du scan. Un disque sans numéro de série ou illisible est toujours gardé : rien ne prouve un doublon.
+pub fn dedupe_disks(entries: Vec<DiskEntry>) -> Vec<DiskEntry> {
+    let mut kept: Vec<DiskEntry> = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let duplicate_of =
+            identity(&entry).and_then(|id| kept.iter().position(|k| identity(k) == Some(id)));
+        match duplicate_of {
+            Some(i) if is_csmi(&kept[i]) && !is_csmi(&entry) => kept[i] = entry,
+            Some(_) => {}
+            None => kept.push(entry),
+        }
+    }
+    kept
+}
+
+fn identity(entry: &DiskEntry) -> Option<(&str, &str)> {
+    let info = entry.info.as_ref()?;
+    let serial = info.serial.as_deref().filter(|s| !s.trim().is_empty())?;
+    Some((info.model.as_deref().unwrap_or_default(), serial))
+}
+
+fn is_csmi(entry: &DiskEntry) -> bool {
+    entry.device.name.starts_with("/dev/csmi")
 }
 
 /// Analyse la sortie de `smartctl --scan-open -j`.
@@ -282,6 +321,12 @@ impl RawOutput {
             (_, Some(rpm)) => MediaKind::Hdd { rpm },
             (_, None) => MediaKind::Unknown,
         };
+        let ata_attributes: Vec<AtaAttribute> = self
+            .ata_smart_attributes
+            .map(|a| a.table.into_iter().map(AtaAttribute::from).collect())
+            .unwrap_or_default();
+        let nvme_health = self.nvme_smart_health_information_log.map(NvmeHealth::from);
+        let life_remaining_pct = life_remaining(&media, nvme_health.as_ref(), &ata_attributes);
 
         DiskInfo {
             device,
@@ -302,11 +347,9 @@ impl RawOutput {
             temperature_c: self.temperature.and_then(|t| t.current).filter(|&c| c != 0),
             power_on_hours: self.power_on_time.and_then(|p| p.hours),
             power_cycles: self.power_cycle_count,
-            ata_attributes: self
-                .ata_smart_attributes
-                .map(|a| a.table.into_iter().map(AtaAttribute::from).collect())
-                .unwrap_or_default(),
-            nvme_health: self.nvme_smart_health_information_log.map(NvmeHealth::from),
+            ata_attributes,
+            nvme_health,
+            life_remaining_pct,
             exit_status,
             warnings,
         }
@@ -367,6 +410,31 @@ impl Protocol {
     }
 }
 
+/// Attributs ATA dont la valeur normalisée est la vie restante en %, selon le fabricant :
+/// 177 Samsung, 202 Crucial/Micron, 231 Kingston/SandForce, 233 Intel. Premier trouvé, dans cet ordre.
+const ATA_LIFE_ATTRIBUTES: [u8; 4] = [177, 202, 231, 233];
+
+/// Vie restante d'un SSD en %. NVMe : `100 - percentage_used` (la norme permet plus de 100 % d'usure,
+/// d'où le plancher à 0). SATA : attribut propre au fabricant, lu seulement sur un SSD, car les mêmes
+/// ID ont un autre sens sur un disque dur (202 = erreurs d'adresse chez WD, par exemple).
+pub(crate) fn life_remaining(
+    media: &MediaKind,
+    nvme: Option<&NvmeHealth>,
+    ata: &[AtaAttribute],
+) -> Option<u8> {
+    if let Some(used) = nvme.and_then(|h| h.percentage_used) {
+        return Some(100u8.saturating_sub(used));
+    }
+    if *media != MediaKind::Ssd {
+        return None;
+    }
+    ATA_LIFE_ATTRIBUTES
+        .iter()
+        .find_map(|id| ata.iter().find(|a| a.id == *id))
+        .and_then(|a| u8::try_from(a.value).ok())
+        .filter(|&v| v <= 100)
+}
+
 /// Bits 0 et 1 : erreurs bloquantes (ligne de commande, ouverture du périphérique).
 pub(crate) const FATAL_EXIT_BITS: u8 = 0b0000_0011;
 
@@ -390,4 +458,54 @@ pub(crate) fn exit_status_warnings(status: u8) -> Vec<String> {
         .filter(|(bit, _)| status & (1 << bit) != 0)
         .map(|(_, msg)| (*msg).to_string())
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn nvme_used(pct: u8) -> NvmeHealth {
+        NvmeHealth {
+            critical_warning: None,
+            available_spare: None,
+            available_spare_threshold: None,
+            percentage_used: Some(pct),
+            data_units_written: None,
+            data_units_read: None,
+            unsafe_shutdowns: None,
+            media_errors: None,
+            error_log_entries: None,
+        }
+    }
+
+    fn ata(id: u8, value: u16) -> AtaAttribute {
+        AtaAttribute {
+            id,
+            name: String::new(),
+            value,
+            worst: value,
+            threshold: 0,
+            raw_value: 0,
+            raw_string: String::new(),
+            prefailure: false,
+            when_failed: None,
+        }
+    }
+
+    #[test]
+    fn nvme_wear_beyond_100_percent_floors_at_zero() {
+        let h = nvme_used(143);
+        assert_eq!(life_remaining(&MediaKind::Ssd, Some(&h), &[]), Some(0));
+    }
+
+    #[test]
+    fn vendor_attribute_is_ignored_on_hdd() {
+        // 202 sur un disque dur WD : erreurs d'adresse, pas une usure.
+        let hdd = MediaKind::Hdd { rpm: 7200 };
+        assert_eq!(life_remaining(&hdd, None, &[ata(202, 100)]), None);
+        assert_eq!(
+            life_remaining(&MediaKind::Ssd, None, &[ata(202, 88)]),
+            Some(88)
+        );
+    }
 }

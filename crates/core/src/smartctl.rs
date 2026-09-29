@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use thiserror::Error;
 
-use crate::disk::{parse_disk, parse_scan, DiskInfo, ScanDevice};
+use crate::disk::{dedupe_disks, parse_disk, parse_scan, DiskEntry, DiskInfo, ScanDevice};
 
 /// Variable d'environnement qui force le chemin de smartctl (tests, développement).
 pub const ENV_OVERRIDE: &str = "PCCHECK_SMARTCTL";
@@ -105,6 +105,28 @@ impl Smartctl {
         }
         args.push(device.name.as_str());
         parse_disk(&self.run(&args)?, device)
+    }
+
+    /// Liste les disques puis lit chacun, sans doublons (voir `dedupe_disks`).
+    /// Seul l'échec du scan est une erreur ; l'échec d'un disque est rendu avec lui.
+    pub fn scan_all(&self) -> Result<Vec<DiskEntry>, SmartctlError> {
+        let entries = self
+            .scan()?
+            .into_iter()
+            .map(|device| match self.info(&device) {
+                Ok(info) => DiskEntry {
+                    device,
+                    info: Some(info),
+                    error: None,
+                },
+                Err(error) => DiskEntry {
+                    device,
+                    info: None,
+                    error: Some(error),
+                },
+            })
+            .collect();
+        Ok(dedupe_disks(entries))
     }
 
     /// Lance smartctl et renvoie sa sortie standard. Le code de sortie n'est pas une erreur ici :
