@@ -240,6 +240,19 @@ Objectif : lever les risques de la stack avant d'écrire les fonctionnalités.
 
 Critère de sortie : les quatre points de lancement passent. Sinon, décision Electron.
 
+#### Qui vérifie quoi
+Claude vérifie tout ce qui peut l'être sans matériel réel. Le propriétaire ne fait qu'un test final sur sa machine.
+
+| Point | Où | Ce qui est vérifié | Limite |
+|---|---|---|---|
+| AppImage Linux | Docker dans la session cloud de Claude, conteneurs Ubuntu 22.04, Fedora 41, Linux Mint 22 + Xvfb | Démarrage sans dépendance manquante, rendu de la fenêtre, capture d'écran relue | Pas de vrai GPU ni de Wayland. Lancement avec `--appimage-extract-and-run` (pas de FUSE en conteneur) |
+| Build et lancement Windows | GitHub Actions, runner `windows-latest` | Compilation, présence du manifeste admin dans l'exe, démarrage, contenu rendu par la webview (écrit dans le journal par un mode d'autotest) | Windows Server, pas Windows 10/11. UAC désactivé sur les runners, donc l'invite admin n'est pas testable. WebView2 déjà installé |
+| smartctl depuis Rust | Docker et Actions | Appel du binaire embarqué, analyse du JSON sur des sorties enregistrées (SATA, NVMe, pont USB sans SMART, disque défaillant) | Pas de vrai disque avec SMART dans le cloud |
+| Génération PDF | Docker | Rendu du PDF, capture relue | Aucune |
+| **Test final** | **Machine du propriétaire** | Clé USB sur son PC Windows : SmartScreen, invite UAC, lecture SMART réelle du Samsung 860 EVO | Environ 10 minutes, liste de contrôle fournie par Claude |
+
+État constaté le 2026-09-29 : Docker fonctionne dans la session (démarrer `dockerd` au besoin). Fedora 41 et Mint 22 téléchargés. Ubuntu bloqué temporairement par les quotas anonymes de Docker Hub (429) et d'ECR ; plan B : image construite avec `debootstrap` depuis archive.ubuntu.com (accessible). Pas de `/dev/kvm`, donc pas de machine virtuelle Windows locale. Le dépôt est privé : les minutes GitHub Actions comptent dans le quota du compte (Windows compte double, quota à vérifier sur le compte).
+
 ### Phase 1 · Un seul disque (V1)
 - [ ] Détection des disques (internes et USB) avec le type de pont.
 - [ ] Écran « Un disque » selon la maquette : santé, température, fiche technique, attributs SMART (décimal / hexa).
