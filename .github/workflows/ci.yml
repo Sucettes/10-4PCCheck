@@ -1,0 +1,158 @@
+name: CI
+
+on:
+  push:
+    branches: [master, "claude/**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Lint et tests du moteur et de l'app (Linux).
+  check:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Dépendances système Tauri
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libwebkit2gtk-4.1-dev libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf
+      - name: smartctl statique (requis par la configuration Linux)
+        run: tools/build-smartctl-linux.sh
+      - name: Interface (typage + build)
+        working-directory: app
+        run: |
+          npm ci
+          npm run build
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+
+  # AppImage Linux, construite sur Ubuntu 22.04 (glibc 2.35) pour la compatibilité.
+  linux-appimage:
+    runs-on: ubuntu-22.04
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Dépendances système Tauri
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libwebkit2gtk-4.1-dev libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf xvfb
+      - run: tools/build-smartctl-linux.sh
+      - name: Build AppImage
+        working-directory: app
+        env:
+          NO_STRIP: "true"
+        run: |
+          npm ci
+          npx tauri build --bundles appimage
+      - name: Autotest de l'AppImage
+        run: |
+          mkdir -p usb/linux
+          cp target/release/bundle/appimage/*.AppImage usb/linux/10-4-pccheck.AppImage
+          chmod +x usb/linux/10-4-pccheck.AppImage
+          timeout 120 xvfb-run -a usb/linux/10-4-pccheck.AppImage --self-test "$PWD/selftest-linux.json"
+          cat selftest-linux.json
+          jq -e '.ok == true and .appInfo.smartctl.status == "ready"' selftest-linux.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 10-4-pccheck-linux
+          path: |
+            usb/linux/
+            selftest-linux.json
+
+  # Exécutable Windows portable : build, manifeste admin, autotest et capture d'écran.
+  windows:
+    runs-on: windows-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: smartctl.exe (smartmontools via Chocolatey)
+        shell: pwsh
+        run: |
+          choco install smartmontools -y --no-progress | Out-Null
+          $src = "C:\Program Files\smartmontools\bin\smartctl.exe"
+          if (-not (Test-Path $src)) { throw "smartctl.exe introuvable après installation" }
+          New-Item -ItemType Directory -Force tools\windows | Out-Null
+          Copy-Item $src tools\windows\smartctl.exe
+          & tools\windows\smartctl.exe --version | Select-Object -First 1
+      - name: Build (exécutable seul, sans installateur)
+        working-directory: app
+        run: |
+          npm ci
+          npx tauri build --no-bundle
+      - name: Vérifier le manifeste requireAdministrator
+        shell: pwsh
+        run: |
+          $mt = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\mt.exe" | Sort-Object FullName | Select-Object -Last 1
+          & $mt.FullName -nologo "-inputresource:target\release\pccheck.exe;#1" "-out:manifest.xml"
+          Get-Content manifest.xml
+          if (-not (Select-String -Path manifest.xml -Pattern 'level="requireAdministrator"' -Quiet)) { throw "requireAdministrator absent du manifeste" }
+          if (-not (Select-String -Path manifest.xml -Pattern 'Microsoft.Windows.Common-Controls' -Quiet)) { throw "Common-Controls absent du manifeste" }
+      - name: Assembler le dossier portable
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force usb\windows\tools | Out-Null
+          Copy-Item target\release\pccheck.exe usb\windows\10-4-pccheck.exe
+          Copy-Item tools\windows\smartctl.exe usb\windows\tools\smartctl.exe
+          Get-ChildItem -Recurse usb\windows | Select-Object FullName, Length
+      - name: Autotest
+        shell: pwsh
+        run: |
+          $out = "$PWD\selftest-windows.json"
+          $p = Start-Process -FilePath usb\windows\10-4-pccheck.exe -ArgumentList "--self-test", "`"$out`"" -PassThru
+          if (-not $p.WaitForExit(120000)) { $p.Kill(); throw "autotest : délai dépassé" }
+          Write-Host "code de sortie : $($p.ExitCode)"
+          if (-not (Test-Path $out)) { throw "autotest : aucun rapport écrit" }
+          Get-Content $out
+          $r = Get-Content $out -Raw | ConvertFrom-Json
+          if (-not $r.ok) { throw "autotest en échec" }
+          if ($r.appInfo.smartctl.status -ne "ready") { throw "smartctl non prêt" }
+          Write-Host "élevé : $($r.appInfo.elevated)"
+      - name: Capture d'écran
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath usb\windows\10-4-pccheck.exe -PassThru
+          Start-Sleep -Seconds 12
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          $g.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+          $bmp.Save("$PWD\screenshot-windows.png", [System.Drawing.Imaging.ImageFormat]::Png)
+          Write-Host "écran : $($b.Width)x$($b.Height)"
+          if (-not $p.HasExited) { $p.Kill() }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 10-4-pccheck-windows
+          path: |
+            usb/windows/
+            selftest-windows.json
+            screenshot-windows.png
+            manifest.xml
