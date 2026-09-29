@@ -217,6 +217,14 @@ Palette :
 
 Écrans de la maquette : Accueil, Analyse complète, Un disque (inspiré de CrystalDiskInfo), Téléphone Android, Récupération, Rapport PDF.
 
+### Vérification de l'interface
+Claude vérifie lui-même le rendu de toute modification d'interface avant de la livrer. Ce n'est pas au propriétaire de le faire. Méthode (Playwright + Chromium) :
+1. Rendre chaque écran à sa taille réelle, avec les vraies polices chargées. En cas d'échec du chargement d'une police, le contrôle échoue.
+2. Contrôles automatiques : contenu qui dépasse le cadre, texte tronqué, contraste des textes (4,5:1, ou 3:1 pour le gros texte).
+3. Capture d'écran de chaque écran, relue pour les défauts qu'un script ne voit pas : libellés qui se replient, éléments collés au bord, espaces vides excessifs.
+
+Première passe sur la maquette (2026-09-29) : 2 débordements corrigés (Accueil, Un disque), 3 libellés raccourcis (Analyse complète), hauteurs ajustées. Aucun problème de contraste.
+
 ---
 
 ## 7. Feuille de route
