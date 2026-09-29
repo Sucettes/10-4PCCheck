@@ -5,6 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::attributes::{self, AttributeStatus};
 use crate::smartctl::SmartctlError;
 
 /// Seule version majeure du format JSON de smartctl prise en charge.
@@ -49,6 +50,9 @@ pub struct AtaAttribute {
     pub prefailure: bool,
     /// Rempli par smartctl quand l'attribut est ou a été sous son seuil.
     pub when_failed: Option<String>,
+    /// Libellé français, `None` pour un attribut que la table ne connaît pas.
+    pub label_fr: Option<&'static str>,
+    pub status: AttributeStatus,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -70,6 +74,10 @@ impl NvmeHealth {
     pub fn bytes_written(&self) -> Option<u64> {
         self.data_units_written.and_then(|u| u.checked_mul(512_000))
     }
+
+    pub fn bytes_read(&self) -> Option<u64> {
+        self.data_units_read.and_then(|u| u.checked_mul(512_000))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -81,6 +89,16 @@ pub struct DiskInfo {
     pub capacity_bytes: Option<u64>,
     pub protocol: Protocol,
     pub media: MediaKind,
+    /// Norme de commandes : « ACS-4 T13/BSR INCITS 529 revision 5 », « NVMe 1.4 ».
+    pub standard: Option<String>,
+    /// Génération SATA déclarée par le disque (« SATA 3.2 »).
+    pub sata_version: Option<String>,
+    /// Vitesse actuelle du lien SATA (« 6.0 Gb/s »). Plus basse que prévu : câble, port ou pont USB.
+    pub link_speed: Option<String>,
+    pub form_factor: Option<String>,
+    pub trim_supported: Option<bool>,
+    pub bytes_written: Option<u64>,
+    pub bytes_read: Option<u64>,
     pub smart_available: Option<bool>,
     pub smart_enabled: Option<bool>,
     /// Résultat global SMART du disque. `None` si le disque ne l'expose pas.
@@ -175,6 +193,33 @@ pub(crate) struct RawOutput {
     power_cycle_count: Option<u64>,
     ata_smart_attributes: Option<RawAtaAttributes>,
     nvme_smart_health_information_log: Option<RawNvmeLog>,
+    ata_version: Option<RawString>,
+    nvme_version: Option<RawString>,
+    sata_version: Option<RawString>,
+    interface_speed: Option<RawInterfaceSpeed>,
+    form_factor: Option<RawFormFactor>,
+    trim: Option<RawTrim>,
+    logical_block_size: Option<u64>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawString {
+    string: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawInterfaceSpeed {
+    current: Option<RawString>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawFormFactor {
+    name: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawTrim {
+    supported: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -327,6 +372,19 @@ impl RawOutput {
             .unwrap_or_default();
         let nvme_health = self.nvme_smart_health_information_log.map(NvmeHealth::from);
         let life_remaining_pct = life_remaining(&media, nvme_health.as_ref(), &ata_attributes);
+        let block_size = self.logical_block_size.unwrap_or(512);
+        let (bytes_written, bytes_read) = match &nvme_health {
+            Some(h) => (h.bytes_written(), h.bytes_read()),
+            None => (
+                attributes::bytes_written(&ata_attributes, block_size),
+                attributes::bytes_read(&ata_attributes, block_size),
+            ),
+        };
+        let standard = match (self.nvme_version, self.ata_version) {
+            (Some(v), _) => Some(format!("NVMe {}", v.string)),
+            (None, Some(v)) => Some(v.string),
+            (None, None) => None,
+        };
 
         DiskInfo {
             device,
@@ -339,6 +397,16 @@ impl RawOutput {
                 .or(self.nvme_total_capacity),
             protocol,
             media,
+            standard,
+            sata_version: self.sata_version.map(|v| v.string),
+            link_speed: self
+                .interface_speed
+                .and_then(|i| i.current)
+                .map(|c| c.string),
+            form_factor: self.form_factor.map(|f| f.name),
+            trim_supported: self.trim.and_then(|t| t.supported),
+            bytes_written,
+            bytes_read,
             smart_available: self.smart_support.as_ref().and_then(|s| s.available),
             smart_enabled: self.smart_support.as_ref().and_then(|s| s.enabled),
             smart_passed: self.smart_status.and_then(|s| s.passed),
@@ -369,7 +437,10 @@ impl From<RawDevice> for ScanDevice {
 
 impl From<RawAtaAttribute> for AtaAttribute {
     fn from(a: RawAtaAttribute) -> Self {
+        let when_failed = a.when_failed.filter(|s| !s.is_empty());
         AtaAttribute {
+            label_fr: attributes::label_fr(&a.name),
+            status: attributes::status(a.id, when_failed.as_deref(), a.raw.value),
             id: a.id,
             name: a.name,
             value: a.value,
@@ -378,7 +449,7 @@ impl From<RawAtaAttribute> for AtaAttribute {
             raw_value: a.raw.value,
             raw_string: a.raw.string,
             prefailure: a.flags.and_then(|f| f.prefailure).unwrap_or(false),
-            when_failed: a.when_failed.filter(|s| !s.is_empty()),
+            when_failed,
         }
     }
 }
@@ -489,6 +560,8 @@ mod tests {
             raw_string: String::new(),
             prefailure: false,
             when_failed: None,
+            label_fr: None,
+            status: AttributeStatus::Ok,
         }
     }
 

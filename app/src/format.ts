@@ -18,6 +18,16 @@ export function formatNumber(n: number | null, suffix = ""): string {
   return n === null ? "Inconnu" : `${nf.format(n)}${suffix}`;
 }
 
+/** Valeur brute ATA en hexadécimal : 48 bits, soit 12 chiffres. */
+export function formatHex(n: number): string {
+  return n.toString(16).toUpperCase().padStart(12, "0");
+}
+
+/** Numéro de série masqué sauf les 4 premiers caractères (captures d'écran partagées). */
+export function maskSerial(serial: string): string {
+  return serial.length <= 4 ? serial : serial.slice(0, 4) + "•".repeat(serial.length - 4);
+}
+
 export function mediaLabel(disk: DiskInfo): string {
   switch (disk.media.kind) {
     case "ssd":

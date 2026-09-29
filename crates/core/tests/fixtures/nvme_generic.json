@@ -6,6 +6,8 @@
   "serial_number": "22000000XXXX",
   "firmware_version": "234110WD",
   "nvme_total_capacity": 1000204886016,
+  "nvme_version": { "string": "1.4", "value": 66560 },
+  "logical_block_size": 512,
   "smart_support": { "available": true, "enabled": true },
   "smart_status": { "passed": true, "nvme": { "value": 0 } },
   "nvme_smart_health_information_log": {

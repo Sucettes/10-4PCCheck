@@ -1,16 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { getAppInfo, isCommandError, reportSelfTest, scanDisks } from "./api";
+import { DiskDetail } from "./DiskDetail";
 import { Hint } from "./Hint";
-import {
-  firmwareHint,
-  powerCyclesHint,
-  powerOnHoursHint,
-  smartStatusHint,
-  temperatureHint,
-  unreadableHint,
-} from "./hints";
-import { commandErrorMessage, formatBytes, formatNumber, mediaLabel, smartctlErrorMessage } from "./format";
-import type { AppInfo, DiskEntry, DiskInfo } from "./types";
+import { unreadableHint } from "./hints";
+import { commandErrorMessage, smartctlErrorMessage } from "./format";
+import { entryLevel } from "./status";
+import type { AppInfo, DiskEntry } from "./types";
 
 type Load<T> = { state: "loading" } | { state: "ok"; value: T } | { state: "error"; message: string };
 
@@ -53,7 +48,7 @@ export default function App() {
       <main className="main">
         <header className="page-header">
           <div>
-            <div className="eyebrow">Phase 0 · prototype</div>
+            <div className="eyebrow">Phase 1 · un seul disque</div>
             <h1>Disques</h1>
           </div>
           <button type="button" className="btn" onClick={refresh} disabled={disks.state === "loading"}>
@@ -72,7 +67,7 @@ export default function App() {
           </div>
         )}
 
-        <DiskList disks={disks} />
+        <DisksView disks={disks} />
       </main>
     </div>
   );
@@ -109,7 +104,10 @@ function Sidebar({ info }: { info: Load<AppInfo> }) {
   );
 }
 
-function DiskList({ disks }: { disks: Load<DiskEntry[]> }) {
+function DisksView({ disks }: { disks: Load<DiskEntry[]> }) {
+  const [selected, setSelected] = useState<string | null>(null);
+  const tabs = useRef<(HTMLButtonElement | null)[]>([]);
+
   if (disks.state === "loading") return <p className="muted">Lecture des disques…</p>;
   if (disks.state === "error") {
     return (
@@ -118,88 +116,67 @@ function DiskList({ disks }: { disks: Load<DiskEntry[]> }) {
       </div>
     );
   }
-  if (disks.value.length === 0) {
+  const entries = disks.value;
+  if (entries.length === 0) {
     return <p className="muted">Aucun disque détecté. Vérifie les droits administrateur et les branchements.</p>;
   }
-  return (
-    <section className="disk-grid" aria-label="Disques détectés">
-      {disks.value.map((entry) => (
-        <article className="card" key={entry.device.name}>
-          {entry.info ? (
-            <DiskCard disk={entry.info} />
-          ) : (
-            <>
-              <div className="card-head">
-                <h2>{entry.device.info_name}</h2>
-                <Hint hint={unreadableHint}>
-                  <span className="pill pill-neutral">Illisible</span>
-                </Hint>
-              </div>
-              <p className="muted">{entry.error ? smartctlErrorMessage(entry.error) : "Erreur inconnue."}</p>
-            </>
-          )}
-        </article>
-      ))}
-    </section>
-  );
-}
+  // Sélection gardée après « Actualiser » si le disque est toujours là, sinon le premier.
+  const current = entries.find((e) => e.device.name === selected) ?? entries[0]!;
+  const index = entries.indexOf(current);
 
-function DiskCard({ disk }: { disk: DiskInfo }) {
-  const verdict =
-    disk.smart_passed === true
-      ? { label: "Bon", cls: "pill-good" }
-      : disk.smart_passed === false
-        ? { label: "Critique", cls: "pill-bad" }
-        : { label: "Inconnu", cls: "pill-neutral" };
+  // Motif ARIA « onglets » : flèches gauche/droite, Début et Fin déplacent la sélection.
+  const onKeyDown = (e: KeyboardEvent) => {
+    const next = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: entries.length - 1 }[e.key];
+    if (next === undefined) return;
+    e.preventDefault();
+    const i = (next + entries.length) % entries.length;
+    setSelected(entries[i]!.device.name);
+    tabs.current[i]?.focus();
+  };
+
   return (
     <>
-      <div className="card-head">
-        <h2>{disk.model ?? disk.device.info_name}</h2>
-        <Hint hint={smartStatusHint(disk)}>
-          <span className={`pill ${verdict.cls}`}>
-            {verdict.label}
-            {disk.life_remaining_pct !== null && ` · ${disk.life_remaining_pct} %`}
-          </span>
-        </Hint>
+      <div className="disk-tabs" role="tablist" aria-label="Disques détectés" onKeyDown={onKeyDown}>
+        {entries.map((entry, i) => {
+          const active = entry === current;
+          const pct = entry.info?.life_remaining_pct ?? null;
+          return (
+            <button
+              key={entry.device.name}
+              ref={(el) => {
+                tabs.current[i] = el;
+              }}
+              type="button"
+              role="tab"
+              id={`tab-${i}`}
+              aria-selected={active}
+              aria-controls="disk-panel"
+              tabIndex={active ? 0 : -1}
+              className={active ? "disk-tab active" : "disk-tab"}
+              onClick={() => setSelected(entry.device.name)}
+            >
+              <span className={`dot dot-${entryLevel(entry)}`} aria-hidden="true" />
+              <span className="disk-tab-name">{entry.info?.model ?? entry.device.info_name}</span>
+              {pct !== null && <span className="disk-tab-pct">{pct} %</span>}
+            </button>
+          );
+        })}
       </div>
-      <p className="muted">
-        {disk.device.info_name} · {mediaLabel(disk)} · {formatBytes(disk.capacity_bytes)}
-      </p>
-      <dl className="stats">
-        <div>
-          <dt>
-            <Hint hint={temperatureHint(disk)}>Température</Hint>
-          </dt>
-          <dd>{formatNumber(disk.temperature_c, " °C")}</dd>
-        </div>
-        <div>
-          <dt>
-            <Hint hint={powerOnHoursHint(disk)}>Heures</Hint>
-          </dt>
-          <dd>{formatNumber(disk.power_on_hours, " h")}</dd>
-        </div>
-        <div>
-          <dt>
-            <Hint hint={powerCyclesHint(disk)}>Démarrages</Hint>
-          </dt>
-          <dd>{formatNumber(disk.power_cycles)}</dd>
-        </div>
-        <div>
-          <dt>
-            <Hint hint={firmwareHint}>
-              Firmware
-            </Hint>
-          </dt>
-          <dd className="mono">{disk.firmware ?? "Inconnu"}</dd>
-        </div>
-      </dl>
-      {disk.warnings.length > 0 && (
-        <ul className="warnings">
-          {disk.warnings.map((w) => (
-            <li key={w}>{w}</li>
-          ))}
-        </ul>
-      )}
+      <section id="disk-panel" role="tabpanel" aria-labelledby={`tab-${index}`}>
+        {current.info ? (
+          <DiskDetail key={current.device.name} disk={current.info} />
+        ) : (
+          <div className="panel">
+            <div className="card-head">
+              <h2>{current.device.info_name}</h2>
+              <Hint hint={unreadableHint}>
+                <span className="pill pill-neutral">Illisible</span>
+              </Hint>
+            </div>
+            <p className="muted">{current.error ? smartctlErrorMessage(current.error) : "Erreur inconnue."}</p>
+          </div>
+        )}
+      </section>
     </>
   );
 }

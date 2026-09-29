@@ -3,7 +3,8 @@ import type { HintText } from "./hints";
 
 /** Largeur de la bulle, identique à `.hint-bubble` dans styles.css. */
 const BUBBLE_WIDTH = 320;
-const EDGE_MARGIN = 16;
+// Marge au bord droit : couvre la barre de défilement verticale (17 px sous Windows).
+const EDGE_MARGIN = 24;
 
 interface Props {
   hint: HintText;

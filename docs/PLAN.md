@@ -7,7 +7,7 @@ Convention utilisée dans ce document :
 - **Hypothèse** : probable, mais à valider par un prototype ou un test.
 - **Décision** : choix arrêté avec le propriétaire du projet.
 
-Dernière mise à jour : 2026-09-29.
+Dernière mise à jour : 2026-09-29 (fin de journée).
 
 ---
 
@@ -282,10 +282,10 @@ Claude vérifie tout ce qui peut l'être sans matériel réel. Le propriétaire 
 État constaté le 2026-09-29 : Docker fonctionne dans la session (démarrer `dockerd` au besoin). Fedora 41 et Mint 22 téléchargés. Ubuntu bloqué temporairement par les quotas anonymes de Docker Hub (429) et d'ECR ; plan B : image construite avec `debootstrap` depuis archive.ubuntu.com (accessible). Pas de `/dev/kvm`, donc pas de machine virtuelle Windows locale. Le dépôt est privé : les minutes GitHub Actions comptent dans le quota du compte (Windows compte double, quota à vérifier sur le compte).
 
 ### Phase 1 · Un seul disque (V1)
-- [ ] Détection des disques (internes et USB) avec le type de pont.
-- [ ] Écran « Un disque » selon la maquette : santé, température, fiche technique, attributs SMART (décimal / hexa).
-- [ ] Traduction française des attributs SMART courants.
-- [ ] Score de santé par fabricant (SATA) et `percentage_used` (NVMe).
+- [x] Détection des disques (internes et USB) avec le type de pont. Doublons Intel RST (`/dev/csmiN,P`) retirés par modèle + numéro de série.
+- [x] Écran « Un disque » selon la maquette : onglets par disque, vie restante, température, données écrites, fiche technique, attributs SMART (décimal / hexa), journal de santé NVMe. Info-bulles explicatives sur chaque donnée. Reste : boutons des tests (ci-dessous).
+- [x] Traduction française des attributs SMART courants (par nom smartctl, pas par ID : les ID 170+ changent de sens selon le fabricant). État par attribut : OK, à surveiller, échec.
+- [x] Score de santé par fabricant (SATA : 177, 202, 231, 233, SSD seulement) et `percentage_used` (NVMe).
 - [ ] Vérifications de cohérence.
 - [ ] Auto-tests SMART court et long avec suivi.
 - [ ] Scan de surface en lecture seule.
@@ -344,3 +344,4 @@ Claude vérifie tout ce qui peut l'être sans matériel réel. Le propriétaire 
 |---|---|
 | 2026-09-29 | Analyse de faisabilité, décisions (section 2), maquette UI (version 1 sombre, version 2 style bureau rejetée, version 1 passée en clair retenue), choix des boîtiers USB, création de ce plan. |
 | 2026-09-29 | Phase 0 : moteur Rust + smartctl, app Tauri + React, smartctl statique, AppImage testée sur 3 distros, CI Windows et Linux, décision PDF (Typst). Reste le test final sur le PC du propriétaire. |
+| 2026-09-29 | Test final phase 0 sur le PC du propriétaire (Windows 11, exe compilé en local : invite UAC et lecture SMART de 4 NVMe OK ; SmartScreen non testable, exe non téléchargé). Test chez un ami : doublon Intel RST corrigé. Phase 1 : vie restante, info-bulles, écran « Un disque ». CI : artefacts gardés 1 jour (quota de 0,5 Go atteint). |

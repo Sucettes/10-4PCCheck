@@ -95,3 +95,149 @@ export const unreadableHint: HintText = {
     "Causes fréquentes : boîtier USB dont le pont ne transmet pas le SMART, ou outil lancé sans droits administrateur. Essaie un autre boîtier ou branche le disque en interne.",
   ],
 };
+
+const nfBytes = new Intl.NumberFormat("fr-CA", { maximumFractionDigits: 1 });
+
+export function bytesWrittenHint(disk: DiskInfo): HintText {
+  const perDay =
+    disk.bytes_written !== null && disk.power_on_hours !== null && disk.power_on_hours >= 24
+      ? disk.bytes_written / 1e9 / (disk.power_on_hours / 24)
+      : null;
+  return {
+    title: "Données écrites",
+    body: [
+      disk.protocol === "nvme"
+        ? "Total écrit par l'ordinateur sur le disque depuis sa fabrication (« Data Units Written », norme NVMe, unités de 512 000 octets)."
+        : "Total écrit par l'ordinateur sur le disque depuis sa fabrication, lu dans l'attribut du fabricant (LBA écrits × taille d'un secteur, ou compteur en Gio).",
+      "C'est ce qui use un SSD. Compare avec l'endurance garantie (TBW) de la fiche du fabricant : un SSD de 500 Go est souvent garanti pour 150 à 300 To écrits.",
+      "Un total très bas pour beaucoup d'heures peut indiquer des compteurs remis à zéro.",
+    ],
+    ...(perDay !== null && { here: `Environ ${nfBytes.format(perDay)} Go écrits par jour d'utilisation.` }),
+  };
+}
+
+export const serialHint: HintText = {
+  title: "Numéro de série",
+  body: [
+    "Identifiant unique du disque, masqué par défaut pour les captures d'écran partagées.",
+    "À l'achat, compare-le avec l'étiquette collée sur le disque : un numéro différent veut dire que le disque lu n'est pas celui qu'on te vend.",
+  ],
+};
+
+export function interfaceHint(disk: DiskInfo): HintText {
+  return disk.protocol === "nvme"
+    ? {
+        title: "Interface",
+        body: [
+          "Disque NVMe : branché en PCI Express (connecteur M.2 ou boîtier USB).",
+          "Dans un boîtier USB, le débit est limité par l'USB, pas par le disque.",
+        ],
+      }
+    : {
+        title: "Interface",
+        body: [
+          "Génération SATA prise en charge par le disque, puis vitesse réelle du lien en ce moment.",
+          "SATA 3 = 6.0 Gb/s. Un lien à 3.0 ou 1.5 Gb/s sur un disque SATA 3 indique un vieux port, un câble abîmé ou un pont USB lent.",
+        ],
+      };
+}
+
+export const trimHint: HintText = {
+  title: "TRIM",
+  body: [
+    "Commande qui permet au système de dire au SSD quels blocs sont libres. Elle garde les performances stables dans le temps.",
+    "Effet secondaire : les fichiers supprimés sont effacés rapidement, donc presque impossibles à récupérer.",
+  ],
+};
+
+export const standardHint: HintText = {
+  title: "Norme",
+  body: [
+    "Version de la norme de commandes que le disque respecte (ATA/ACS pour SATA, NVMe pour les SSD PCIe).",
+    "Utile surtout pour dater le disque : une norme récente sur un disque annoncé ancien est suspecte, et inversement.",
+  ],
+};
+
+export const attributeColumnHints = {
+  status: {
+    title: "État",
+    body: [
+      "OK : rien à signaler.",
+      "À surveiller : compteur d'erreurs non nul (secteurs réalloués, en attente, erreurs CRC…) ou attribut déjà passé sous son seuil par le passé.",
+      "Échec : l'attribut est sous le seuil du fabricant en ce moment.",
+    ],
+  },
+  id: {
+    title: "ID",
+    body: [
+      "Numéro de l'attribut SMART, en hexadécimal comme dans CrystalDiskInfo.",
+      "Les ID 1 à 199 ont en général le même sens partout. Au-delà, chaque fabricant fait ce qu'il veut : le nom affiché vient de la base de smartctl.",
+    ],
+  },
+  value: {
+    title: "Actuel",
+    body: [
+      "Valeur normalisée par le fabricant, souvent de 100 (ou 200, ou 253) quand le disque est neuf, qui baisse avec l'usure.",
+      "Elle ne se compare qu'au seuil du même attribut, pas d'un disque à l'autre.",
+    ],
+  },
+  worst: {
+    title: "Pire",
+    body: ["Plus basse valeur normalisée jamais atteinte par cet attribut."],
+  },
+  threshold: {
+    title: "Seuil",
+    body: [
+      "Limite fixée par le fabricant. Si « Actuel » descend à ce seuil ou en dessous, l'attribut est en échec.",
+      "Un seuil de 0 veut dire que l'attribut est informatif et ne peut pas échouer.",
+    ],
+  },
+  raw: {
+    title: "Brut",
+    body: [
+      "Valeur brute du compteur : secteurs, heures, octets, degrés… L'unité dépend de l'attribut et du fabricant.",
+      "C'est souvent la valeur la plus parlante : par exemple 0 secteur réalloué, 8 démarrages. Bascule en hexadécimal pour les valeurs codées (certains fabricants y rangent plusieurs compteurs).",
+    ],
+  },
+} satisfies Record<string, HintText>;
+
+export const nvmeHints = {
+  critical_warning: {
+    title: "Avertissement critique",
+    body: [
+      "Drapeaux levés par le disque lui-même : réserve épuisée, température hors limites, fiabilité dégradée, passage en lecture seule.",
+      "Toute valeur autre que 0 est un problème sérieux.",
+    ],
+  },
+  available_spare: {
+    title: "Réserve disponible",
+    body: [
+      "Part des blocs de rechange encore disponibles pour remplacer les blocs usés. 100 % sur un disque sain.",
+      "Sous le seuil du fabricant, le disque est considéré en fin de vie.",
+    ],
+  },
+  percentage_used: {
+    title: "Usure",
+    body: [
+      "Estimation du fabricant de la durée de vie consommée. Peut dépasser 100 % : le disque a dépassé sa durée prévue.",
+    ],
+  },
+  unsafe_shutdowns: {
+    title: "Coupures brutales",
+    body: [
+      "Nombre de fois où le courant a été coupé sans arrêt propre (bouton maintenu, panne, batterie vide).",
+      "Informatif : un nombre élevé n'endommage pas forcément le disque, mais renseigne sur l'usage.",
+    ],
+  },
+  media_errors: {
+    title: "Erreurs de média",
+    body: ["Erreurs de données non corrigées par le disque. Doit être 0 ; sinon, des données ont pu être perdues."],
+  },
+  error_log_entries: {
+    title: "Entrées du journal d'erreurs",
+    body: [
+      "Nombre d'erreurs de commande enregistrées. Souvent non nul sans gravité (commandes non prises en charge envoyées par le système).",
+      "À regarder seulement si les erreurs de média ou l'avertissement critique sont aussi non nuls.",
+    ],
+  },
+} satisfies Record<string, HintText>;

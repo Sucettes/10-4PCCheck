@@ -1,5 +1,6 @@
 use pccheck_core::{
-    dedupe_disks, parse_disk, parse_scan, DiskEntry, MediaKind, Protocol, ScanDevice, SmartctlError,
+    dedupe_disks, parse_disk, parse_scan, AttributeStatus, DiskEntry, MediaKind, Protocol,
+    ScanDevice, SmartctlError,
 };
 
 fn fixture(name: &str) -> String {
@@ -39,6 +40,25 @@ fn sata_ssd_is_parsed_like_crystaldiskinfo() {
     assert!(d.warnings.is_empty());
     assert!(d.nvme_health.is_none());
     assert_eq!(d.life_remaining_pct, Some(97), "attribut 177 de Samsung");
+    assert_eq!(
+        d.standard.as_deref(),
+        Some("ACS-4 T13/BSR INCITS 529 revision 5")
+    );
+    assert_eq!(d.sata_version.as_deref(), Some("SATA 3.2"));
+    assert_eq!(d.link_speed.as_deref(), Some("6.0 Gb/s"));
+    assert_eq!(d.form_factor.as_deref(), Some("2.5 inches"));
+    assert_eq!(d.trim_supported, Some(true));
+    // Total_LBAs_Written x 512 octets.
+    assert_eq!(d.bytes_written, Some(13_994_098_713 * 512));
+    assert_eq!(
+        d.bytes_read, None,
+        "pas d'attribut de lecture sur ce disque"
+    );
+    assert_eq!(wear.label_fr, Some("Usure (répartition)"));
+    assert!(d
+        .ata_attributes
+        .iter()
+        .all(|a| a.status == AttributeStatus::Ok));
 }
 
 #[test]
@@ -52,6 +72,10 @@ fn nvme_uses_total_capacity_and_health_log() {
     assert_eq!(h.bytes_written(), Some(9_876_543 * 512_000));
     assert!(d.ata_attributes.is_empty());
     assert_eq!(d.life_remaining_pct, Some(98), "100 - percentage_used");
+    assert_eq!(d.standard.as_deref(), Some("NVMe 1.4"));
+    assert_eq!(d.bytes_written, Some(9_876_543 * 512_000));
+    assert_eq!(d.bytes_read, Some(12_345_678 * 512_000));
+    assert_eq!(d.sata_version, None);
 }
 
 #[test]
@@ -74,6 +98,18 @@ fn failing_hdd_keeps_data_and_lists_warnings() {
         d.life_remaining_pct, None,
         "pas d'usure mesurable sur un disque dur"
     );
+    let status = |id: u8| d.ata_attributes.iter().find(|a| a.id == id).unwrap().status;
+    assert_eq!(
+        status(5),
+        AttributeStatus::Failing,
+        "sous le seuil maintenant"
+    );
+    assert_eq!(
+        status(197),
+        AttributeStatus::Watch,
+        "57 secteurs en attente"
+    );
+    assert_eq!(status(9), AttributeStatus::Ok);
 }
 
 #[test]

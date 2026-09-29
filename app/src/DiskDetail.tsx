@@ -1,0 +1,314 @@
+import { useState, type CSSProperties, type ReactNode } from "react";
+import { Hint } from "./Hint";
+import {
+  attributeColumnHints,
+  bytesWrittenHint,
+  firmwareHint,
+  interfaceHint,
+  nvmeHints,
+  powerOnHoursHint,
+  serialHint,
+  smartStatusHint,
+  standardHint,
+  temperatureHint,
+  trimHint,
+  type HintText,
+} from "./hints";
+import { formatBytes, formatHex, formatNumber, maskSerial, mediaLabel } from "./format";
+import { attributeLevel, lifeLevel, nvmeStatus, smartVerdict } from "./status";
+import type { AtaAttribute, AttributeStatus, DiskInfo, NvmeHealth } from "./types";
+
+const nf0 = new Intl.NumberFormat("fr-CA", { maximumFractionDigits: 0 });
+
+/** Écran « Un disque » (maquette : Disk.dc.html) : résumé, fiche technique, attributs SMART. */
+export function DiskDetail({ disk }: { disk: DiskInfo }) {
+  return (
+    <div className="detail">
+      <header>
+        <h2 className="detail-title">{disk.model ?? disk.device.info_name}</h2>
+        <p className="muted">
+          {formatBytes(disk.capacity_bytes)} · {mediaLabel(disk)} · {disk.device.info_name}
+        </p>
+      </header>
+
+      <section className="summary" aria-label="Résumé">
+        <HealthCard disk={disk} />
+        <div className="summary-stats">
+          <Stat
+            label="Température"
+            hint={temperatureHint(disk)}
+            value={formatNumber(disk.temperature_c, " °C")}
+            sub="Repère au repos : moins de 50 °C"
+          />
+          <Stat
+            label="Données écrites"
+            hint={bytesWrittenHint(disk)}
+            value={disk.bytes_written === null ? "Non rapportées" : formatBytes(disk.bytes_written)}
+            sub={disk.bytes_read === null ? "Lectures : non rapportées" : `Lues : ${formatBytes(disk.bytes_read)}`}
+          />
+          <Stat
+            label="Heures d'utilisation"
+            hint={powerOnHoursHint(disk)}
+            value={formatNumber(disk.power_on_hours, " h")}
+            sub={
+              disk.power_on_hours === null
+                ? ""
+                : `≈ ${nf0.format(disk.power_on_hours / 24)} jours · ${formatNumber(disk.power_cycles)} démarrages`
+            }
+          />
+        </div>
+      </section>
+
+      <TechSheet disk={disk} />
+
+      {disk.warnings.length > 0 && (
+        <section className="panel panel-warn" aria-label="Messages de smartctl">
+          <h3>Messages de smartctl</h3>
+          <ul className="warnings">
+            {disk.warnings.map((w) => (
+              <li key={w}>{w}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {disk.ata_attributes.length > 0 && <AtaTable attributes={disk.ata_attributes} />}
+      {disk.nvme_health && <NvmeTable health={disk.nvme_health} />}
+    </div>
+  );
+}
+
+function HealthCard({ disk }: { disk: DiskInfo }) {
+  const verdict = smartVerdict(disk);
+  const pct = disk.life_remaining_pct;
+  const source =
+    pct === null
+      ? disk.media.kind === "hdd"
+        ? "Disque dur : pas d'indicateur d'usure. Regarde les secteurs réalloués et en attente."
+        : "Ce disque n'expose pas d'indicateur d'usure."
+      : disk.protocol === "nvme"
+        ? "Selon l'usure déclarée par le disque (norme NVMe)"
+        : "Selon l'attribut d'usure du fabricant";
+  return (
+    <div className="health-card">
+      {pct !== null ? (
+        <div className={`ring ring-${lifeLevel(pct)}`} style={{ "--pct": `${pct}%` } as CSSProperties}>
+          <div className="ring-inner">
+            <span className="ring-value">{pct} %</span>
+            <span className="ring-label">vie restante</span>
+          </div>
+        </div>
+      ) : (
+        <div className="ring ring-none">
+          <div className="ring-inner">
+            <span className="ring-label">Usure non mesurée</span>
+          </div>
+        </div>
+      )}
+      <Hint hint={smartStatusHint(disk)}>
+        <span className={`pill pill-${verdict.level}`}>SMART : {verdict.label}</span>
+      </Hint>
+      <p className="health-source">{source}</p>
+    </div>
+  );
+}
+
+function Stat({ label, hint, value, sub }: { label: string; hint: HintText; value: string; sub: string }) {
+  return (
+    <div className="stat-card">
+      <Hint hint={hint}>
+        <span className="stat-label">{label}</span>
+      </Hint>
+      <span className="stat-value">{value}</span>
+      {sub && <span className="stat-sub">{sub}</span>}
+    </div>
+  );
+}
+
+function TechSheet({ disk }: { disk: DiskInfo }) {
+  const [showSerial, setShowSerial] = useState(false);
+  const iface =
+    disk.protocol === "nvme"
+      ? "PCIe NVMe"
+      : [disk.sata_version, disk.link_speed && `lien à ${disk.link_speed}`].filter(Boolean).join(" · ") || null;
+  // Lignes sans donnée masquées (format et TRIM ne sont pas rapportés pour un NVMe, par exemple).
+  const rows: { label: string; hint?: HintText; value: ReactNode | null }[] = [
+    { label: "Firmware", hint: firmwareHint, value: <span className="mono">{disk.firmware ?? "Inconnu"}</span> },
+    {
+      label: "Numéro de série",
+      hint: serialHint,
+      value: disk.serial ? (
+        <span className="serial">
+          <span className="mono">{showSerial ? disk.serial : maskSerial(disk.serial)}</span>
+          <button type="button" className="link-btn" onClick={() => setShowSerial((v) => !v)}>
+            {showSerial ? "Masquer" : "Afficher"}
+          </button>
+        </span>
+      ) : (
+        "Inconnu"
+      ),
+    },
+    { label: "Interface", hint: interfaceHint(disk), value: iface ?? "Inconnue" },
+    { label: "Norme", hint: standardHint, value: disk.standard ?? "Inconnue" },
+    { label: "Format", value: disk.form_factor },
+    {
+      label: "TRIM",
+      hint: trimHint,
+      value: disk.trim_supported === null ? null : disk.trim_supported ? "Pris en charge" : "Non pris en charge",
+    },
+  ];
+  return (
+    <section className="panel" aria-label="Fiche technique">
+      <h3>Fiche technique</h3>
+      <dl className="tech">
+        {rows
+          .filter((r) => r.value !== null)
+          .map((r) => (
+          <div key={r.label}>
+            <dt>{r.hint ? <Hint hint={r.hint}>{r.label}</Hint> : r.label}</dt>
+            <dd>{r.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+function StatusCell({ status }: { status: AttributeStatus }) {
+  const s = attributeLevel[status];
+  return (
+    <span className={`status status-${s.level}`}>
+      <span className="dot" aria-hidden="true" />
+      {s.label}
+    </span>
+  );
+}
+
+function ColumnHead({ hint, children, numeric = false }: { hint: HintText; children: ReactNode; numeric?: boolean }) {
+  return (
+    <th scope="col" className={numeric ? "num" : undefined}>
+      <Hint hint={hint}>{children}</Hint>
+    </th>
+  );
+}
+
+function AtaTable({ attributes }: { attributes: AtaAttribute[] }) {
+  const [hex, setHex] = useState(false);
+  return (
+    <section className="panel" aria-label="Attributs SMART">
+      <div className="panel-head">
+        <h3>Attributs SMART</h3>
+        <div className="segmented" role="group" aria-label="Format des valeurs brutes">
+          <button type="button" aria-pressed={!hex} onClick={() => setHex(false)}>
+            Décimal
+          </button>
+          <button type="button" aria-pressed={hex} onClick={() => setHex(true)}>
+            Hexa
+          </button>
+        </div>
+      </div>
+      <div className="table-wrap">
+        <table className="attr-table">
+          <thead>
+            <tr>
+              <ColumnHead hint={attributeColumnHints.status}>État</ColumnHead>
+              <ColumnHead hint={attributeColumnHints.id}>ID</ColumnHead>
+              <th scope="col">Attribut</th>
+              <ColumnHead hint={attributeColumnHints.value} numeric>
+                Actuel
+              </ColumnHead>
+              <ColumnHead hint={attributeColumnHints.worst} numeric>
+                Pire
+              </ColumnHead>
+              <ColumnHead hint={attributeColumnHints.threshold} numeric>
+                Seuil
+              </ColumnHead>
+              <ColumnHead hint={attributeColumnHints.raw} numeric>
+                Brut
+              </ColumnHead>
+            </tr>
+          </thead>
+          <tbody>
+            {attributes.map((a) => (
+              <tr key={a.id}>
+                <td>
+                  <StatusCell status={a.status} />
+                </td>
+                <td className="mono muted-cell">{a.id.toString(16).toUpperCase().padStart(2, "0")}</td>
+                <td>
+                  <span className="attr-name">{a.label_fr ?? a.name}</span>
+                  {a.label_fr && <span className="attr-en">{a.name}</span>}
+                </td>
+                <td className="num mono">{a.value}</td>
+                <td className="num mono">{a.worst}</td>
+                <td className="num mono muted-cell">{a.threshold}</td>
+                <td className="num mono">{hex ? formatHex(a.raw_value) : a.raw_string}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function NvmeTable({ health }: { health: NvmeHealth }) {
+  const status = nvmeStatus(health);
+  const pct = (n: number | null) => (n === null ? "Inconnu" : `${n} %`);
+  const units = (n: number | null) => (n === null ? "Inconnu" : formatBytes(n * 512_000));
+  const rows: { key: keyof NvmeHealth; label: string; hint?: HintText; value: string }[] = [
+    {
+      key: "critical_warning",
+      label: "Avertissement critique",
+      hint: nvmeHints.critical_warning,
+      value: health.critical_warning === null ? "Inconnu" : health.critical_warning === 0 ? "Aucun" : `0x${health.critical_warning.toString(16).toUpperCase()}`,
+    },
+    {
+      key: "available_spare",
+      label: "Réserve disponible",
+      hint: nvmeHints.available_spare,
+      value: `${pct(health.available_spare)} (seuil ${pct(health.available_spare_threshold)})`,
+    },
+    { key: "percentage_used", label: "Usure", hint: nvmeHints.percentage_used, value: pct(health.percentage_used) },
+    { key: "data_units_written", label: "Données écrites", value: units(health.data_units_written) },
+    { key: "data_units_read", label: "Données lues", value: units(health.data_units_read) },
+    { key: "unsafe_shutdowns", label: "Coupures brutales", hint: nvmeHints.unsafe_shutdowns, value: formatNumber(health.unsafe_shutdowns) },
+    { key: "media_errors", label: "Erreurs de média", hint: nvmeHints.media_errors, value: formatNumber(health.media_errors) },
+    {
+      key: "error_log_entries",
+      label: "Entrées du journal d'erreurs",
+      hint: nvmeHints.error_log_entries,
+      value: formatNumber(health.error_log_entries),
+    },
+  ];
+  return (
+    <section className="panel" aria-label="Journal de santé NVMe">
+      <div className="panel-head">
+        <h3>Journal de santé NVMe</h3>
+      </div>
+      <div className="table-wrap">
+        <table className="attr-table">
+          <thead>
+            <tr>
+              <ColumnHead hint={attributeColumnHints.status}>État</ColumnHead>
+              <th scope="col">Mesure</th>
+              <th scope="col" className="num">
+                Valeur
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.key}>
+                <td>{status[r.key] ? <StatusCell status={status[r.key] ?? "ok"} /> : <span className="status status-neutral">Info</span>}</td>
+                <td>{r.hint ? <Hint hint={r.hint}>{r.label}</Hint> : r.label}</td>
+                <td className="num mono">{r.value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+

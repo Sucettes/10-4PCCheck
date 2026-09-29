@@ -21,7 +21,11 @@ export interface AtaAttribute {
   raw_string: string;
   prefailure: boolean;
   when_failed: string | null;
+  label_fr: string | null;
+  status: AttributeStatus;
 }
+
+export type AttributeStatus = "ok" | "watch" | "failing";
 
 export interface NvmeHealth {
   critical_warning: number | null;
@@ -43,6 +47,13 @@ export interface DiskInfo {
   capacity_bytes: number | null;
   protocol: Protocol;
   media: MediaKind;
+  standard: string | null;
+  sata_version: string | null;
+  link_speed: string | null;
+  form_factor: string | null;
+  trim_supported: boolean | null;
+  bytes_written: number | null;
+  bytes_read: number | null;
   smart_available: boolean | null;
   smart_enabled: boolean | null;
   smart_passed: boolean | null;

@@ -7,6 +7,15 @@
   "firmware_version": "RVT04B6Q",
   "user_capacity": { "blocks": 976773168, "bytes": 500107862016 },
   "rotation_rate": 0,
+  "form_factor": { "ata_value": 3, "name": "2.5 inches" },
+  "trim": { "supported": true, "deterministic": true, "zeroed": false },
+  "ata_version": { "string": "ACS-4 T13/BSR INCITS 529 revision 5", "major_value": 4092, "minor_value": 94 },
+  "sata_version": { "string": "SATA 3.2", "value": 255 },
+  "interface_speed": {
+    "max": { "sata_value": 14, "string": "6.0 Gb/s", "units_per_second": 60, "bits_per_unit": 100000000 },
+    "current": { "sata_value": 3, "string": "6.0 Gb/s", "units_per_second": 60, "bits_per_unit": 100000000 }
+  },
+  "logical_block_size": 512,
   "smart_support": { "available": true, "enabled": true },
   "smart_status": { "passed": true },
   "ata_smart_attributes": {
