@@ -147,25 +147,30 @@ fn tool_dirs(app: &AppHandle) -> Vec<PathBuf> {
     dirs
 }
 
-/// Taille voulue de la fenêtre, réduite si l'écran est plus petit (portables en 1366 x 768,
-/// vieux écrans en 1024 x 768), puis centrée.
+/// Taille voulue de la fenêtre, réduite si la zone utile de l'écran est plus petite (portables
+/// en 1366 x 768, vieux écrans en 1024 x 768), puis centrée dans cette zone.
 fn fit_to_screen(window: &WebviewWindow) -> tauri::Result<()> {
     const WIDTH: f64 = 1280.0;
     const HEIGHT: f64 = 720.0;
+    // Barre de titre et bordures ajoutées par le système autour du contenu (estimation).
+    const DECORATION: f64 = 40.0;
+    const MARGIN: f64 = 16.0;
     let Some(monitor) = window.current_monitor()? else {
         return Ok(());
     };
     let scale = monitor.scale_factor();
-    let screen = monitor.size().to_logical::<f64>(scale);
-    let origin = monitor.position().to_logical::<f64>(scale);
-    let width = WIDTH.min(screen.width * 0.95);
-    let height = HEIGHT.min(screen.height * 0.9);
+    // Zone utile : l'écran moins la barre des tâches.
+    let area = monitor.work_area();
+    let area_size = area.size.to_logical::<f64>(scale);
+    let area_origin = area.position.to_logical::<f64>(scale);
+    let width = WIDTH.min(area_size.width - 2.0 * MARGIN);
+    let height = HEIGHT.min(area_size.height - DECORATION - 2.0 * MARGIN);
     window.set_size(LogicalSize::new(width, height))?;
     // Position calculée ici : `center()` peut lire l'ancienne taille, le redimensionnement
     // étant appliqué de façon asynchrone par certains gestionnaires de fenêtres.
     window.set_position(LogicalPosition::new(
-        origin.x + (screen.width - width) / 2.0,
-        origin.y + (screen.height - height) / 2.0,
+        area_origin.x + (area_size.width - width) / 2.0,
+        area_origin.y + (area_size.height - height - DECORATION) / 2.0,
     ))
 }
 
