@@ -40,7 +40,7 @@ Usage personnel uniquement, pas de distribution.
 | Langue | Français (hypothèse, pas confirmé). |
 | Distribution | Personnelle. Pas de signature de code prévue : l'avertissement SmartScreen sera contourné à la main. |
 | Priorité | Mode « un seul disque » d'abord, puis analyse complète. |
-| UI | Mode clair uniquement. Style application de bureau (voir section 6). |
+| UI | Mode clair uniquement. Cartes et barre latérale, version 1 de la maquette passée en clair (voir section 6). |
 
 ---
 
@@ -187,29 +187,33 @@ Test de charge multi-thread écrit en Rust, 5 minutes par défaut. On mesure la 
 
 Maquette (6 écrans, privée) : https://claude.ai/artifact/51wHFuPwGt3ErzNnPr32LY
 
-Retour du propriétaire : la première version (sombre, grandes cartes arrondies) n'était pas laide mais faisait « IA générique ». La version retenue suit ces règles :
-- **Mode clair uniquement**, pas de mode sombre.
-- Style application de bureau. Références : pgAdmin 4, MongoDB Compass, logiciels de gestion.
-- Barre de menu en haut (Fichier, Analyse, Outils, Aide), arborescence des appareils à gauche, onglets, barre d'état en bas.
-- Tableaux denses (lignes de 25 à 32 px), panneaux avec barre de titre grise, coins de 2 à 3 px.
-- Police du système : Segoe UI sous Windows, Ubuntu ou Noto Sans sous Linux. Consolas ou DejaVu Sans Mono pour les valeurs brutes.
-- Pas de dégradés, pas de grandes cartes, pas d'écran d'accueil façon page marketing.
-- Chaque état porte un libellé texte en plus de sa couleur (VERT/BON, JAUNE/À VÉRIFIER, ROUGE/CRITIQUE).
+Historique des choix :
+1. Version 1 : cartes arrondies, barre latérale, typographie Space Grotesk + IBM Plex, en mode sombre.
+2. Version 2 : style application de bureau dense (arborescence, onglets, tableaux serrés, façon pgAdmin). **Rejetée** : moins bonne que la version 1.
+3. **Version retenue** : la version 1, passée en mode clair.
 
-Palette de la maquette :
+Règles :
+- **Mode clair uniquement**, pas de mode sombre.
+- Barre latérale à gauche (Accueil, Analyse complète, Disques, Téléphone, Récupération, Rapports) avec l'état admin en bas.
+- Contenu en cartes blanches sur fond gris très pâle, coins de 10 à 14 px, bordures fines.
+- Un bandeau de verdict en haut des écrans de résultat (icône, titre, résumé, compteurs OK / avertissements / critiques).
+- Typographie : Space Grotesk pour les titres et les chiffres clés, IBM Plex Sans pour le texte, IBM Plex Mono pour les valeurs brutes. Les polices seront embarquées dans l'app (pas de Google Fonts en ligne chez le vendeur).
+- Chaque état porte un libellé texte en plus de sa couleur (Bon, Usée, À négocier, Critique).
+- Cibles cliquables d'au moins 44 px.
+
+Palette :
 
 | Rôle | Couleur |
 |---|---|
-| Barre de menu | `#2d5a88` |
-| Fond de l'application | `#eef0f3` |
-| Panneaux | `#ffffff`, titre `#f5f6f8` |
-| Bordures | `#c9ced6`, `#d5d9df` |
-| Texte / texte secondaire | `#1f2328` / `#5b6472` |
-| Lien, bouton principal | `#1f5fa8` |
-| Sélection dans l'arbre | `#cfe0f5` |
-| Vert (fond / texte) | `#dff3e4` / `#1e6b34` |
-| Jaune (fond / texte) | `#fff0cc` / `#7a5200` |
-| Rouge (fond / texte) | `#fde2e0` / `#a1241b` |
+| Fond de l'application | `#f6f7f9` |
+| Cartes, barre latérale | `#ffffff` |
+| Bordures | `#e3e6eb` (normale), `#cfd5de` (boutons secondaires) |
+| Texte / texte secondaire | `#1a1d23` / `#5d6574` |
+| Accent (bouton principal, liens) | `#2459d6` |
+| Élément actif (menu, sélection) | fond `#e8effc`, texte `#1f4fb8` |
+| Vert (fond / texte / point) | `#e3f5ea` / `#177a47` / `#1f9d5b` |
+| Jaune (fond / texte / bordure) | `#fff3d6` / `#8a5a00` / `#f0d48a` |
+| Rouge (fond / texte / bordure) | `#fdeceb` / `#b42318` / `#f0b8b4` |
 
 Écrans de la maquette : Accueil, Analyse complète, Un disque (inspiré de CrystalDiskInfo), Téléphone Android, Récupération, Rapport PDF.
 
@@ -244,7 +248,7 @@ Critère de sortie : les quatre points de lancement passent. Sinon, décision El
 - [ ] Moteur de verdict avec la table de seuils.
 - [ ] Export HTML autonome.
 - [ ] Export PDF.
-- [ ] Liste des rapports dans l'arborescence.
+- [ ] Liste des rapports dans l'écran Rapports.
 
 ### Phase 3 · Analyse complète
 - [ ] Inventaire matériel Windows et Linux.
@@ -289,4 +293,4 @@ Critère de sortie : les quatre points de lancement passent. Sinon, décision El
 
 | Date | Travail |
 |---|---|
-| 2026-09-29 | Analyse de faisabilité, décisions (section 2), maquette UI en 2 versions (sombre rejetée, claire retenue), choix des boîtiers USB, création de ce plan. Aucun code écrit. |
+| 2026-09-29 | Analyse de faisabilité, décisions (section 2), maquette UI (version 1 sombre, version 2 style bureau rejetée, version 1 passée en clair retenue), choix des boîtiers USB, création de ce plan. Aucun code écrit. |
