@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getAppInfo, reportSelfTest, scanDisks } from "./api";
 import { DisksPage } from "./DisksPage";
+import { PhonePage } from "./Phone";
 import { Icon, type IconName } from "./icons";
 import { errorMessage, type Load } from "./load";
 import type { AppInfo, DiskEntry } from "./types";
@@ -72,7 +73,8 @@ export default function App() {
           </div>
         )}
         {page === "disques" && <DisksPage info={info} disks={disks} onRefresh={refresh} />}
-        {page !== "disques" && <ComingSoon title={NAV.find((n) => n.id === page)?.label ?? ""} />}
+        {page === "telephone" && <PhonePage />}
+        {!["disques", "telephone"].includes(page) && <ComingSoon title={NAV.find((n) => n.id === page)?.label ?? ""} />}
       </main>
     </div>
   );

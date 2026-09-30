@@ -101,6 +101,7 @@ export type SmartctlError =
 
 export type CommandError =
   | { kind: "smartctl"; detail: SmartctlError }
+  | { kind: "tool"; detail: string }
   | { kind: "internal"; detail: string };
 
 export type SmartctlStatus =

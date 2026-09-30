@@ -3,6 +3,7 @@
 
 mod elevation;
 mod jobs;
+mod phone;
 mod self_test;
 
 use std::path::{Path, PathBuf};
@@ -24,6 +25,8 @@ struct AppState {
 #[serde(tag = "kind", content = "detail", rename_all = "snake_case")]
 enum CommandError {
     Smartctl(SmartctlError),
+    /// Erreur d'un autre outil (adb, PhotoRec...), déjà formulée pour l'utilisateur.
+    Tool(String),
     Internal(String),
 }
 
@@ -193,7 +196,28 @@ fn tool_dirs(app: &AppHandle) -> Vec<PathBuf> {
     if let Ok(resources) = app.path().resource_dir() {
         dirs.push(resources.join("tools"));
     }
+    // PhotoRec est livré avec ses DLL dans un sous-dossier.
+    let with_testdisk: Vec<PathBuf> = dirs.iter().map(|d| d.join("testdisk")).collect();
+    dirs.extend(with_testdisk);
     dirs
+}
+
+/// Racine de la clé : parent de `windows/` ou `linux/` (disposition du plan), sinon le dossier de
+/// l'exécutable (développement). Les rapports et les récupérations y sont rangés.
+fn usb_root() -> PathBuf {
+    let base = std::env::var_os("APPIMAGE")
+        .map(PathBuf::from)
+        .or_else(|| std::env::current_exe().ok())
+        .and_then(|p| p.parent().map(Path::to_path_buf))
+        .unwrap_or_else(|| PathBuf::from("."));
+    match base.file_name().and_then(|n| n.to_str()) {
+        Some("windows" | "linux") => base.parent().map(Path::to_path_buf).unwrap_or(base),
+        _ => base,
+    }
+}
+
+fn reports_dir() -> PathBuf {
+    usb_root().join("rapports")
 }
 
 /// Taille voulue de la fenêtre, réduite si l'écran est plus petit (portables en 1366 x 768,
@@ -277,6 +301,8 @@ fn main() {
             cancel_job,
             start_surface_scan,
             start_capacity_test,
+            phone::phone_devices,
+            phone::phone_collect,
             self_test_report
         ])
         .build(tauri::generate_context!());

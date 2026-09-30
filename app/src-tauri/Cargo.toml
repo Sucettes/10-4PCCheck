@@ -15,6 +15,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 pccheck-core = { path = "../../crates/core" }
+pccheck-android = { path = "../../crates/android" }
 tauri = { version = "2", features = [] }
 serde.workspace = true
 serde_json.workspace = true
