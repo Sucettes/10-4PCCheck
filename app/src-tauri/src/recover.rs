@@ -6,8 +6,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use pccheck_recovery::{
-    disk_from_smartctl_name, list_found, list_volumes, locate_photorec, trim_warning, FileFamily,
-    FoundFile, RecoveryConfig, RecoveryJob, Source, Volume, SUPPORT_HELP,
+    disk_from_smartctl_name, list_deleted, list_found, list_volumes, locate_console_tool,
+    locate_photorec, locate_tsk, trim_warning, volume_device, ConsoleTool, DeletedList, FileFamily,
+    FoundFile, RecoveryConfig, RecoveryJob, Source, TskJob, Volume, SUPPORT_HELP,
 };
 use serde::Serialize;
 use tauri::{AppHandle, State};
@@ -38,6 +39,10 @@ pub struct RecoveryStatus {
     default_destination: String,
     help: &'static str,
     volumes: Vec<VolumeView>,
+    /// The Sleuth Kit (récupération avec les noms) disponible.
+    tsk: bool,
+    /// TestDisk disponible pour la console intégrée.
+    testdisk: bool,
 }
 
 /// État de l'écran Récupération. `source` : nom smartctl du disque choisi, pour marquer les
@@ -58,6 +63,8 @@ pub async fn recovery_status(
             photorec_error,
             default_destination: usb_root().join("recup").display().to_string(),
             help: SUPPORT_HELP,
+            tsk: locate_tsk(&tool_dirs(&app)).is_ok(),
+            testdisk: locate_console_tool(ConsoleTool::Testdisk, &tool_dirs(&app)).is_some(),
             volumes: list_volumes()
                 .into_iter()
                 .map(|volume| VolumeView {
@@ -133,4 +140,48 @@ pub fn open_folder(path: String) -> Result<(), CommandError> {
     }
     crate::reports::open_with_system(&path)
         .map_err(|e| CommandError::Internal(format!("ouverture impossible : {e}")))
+}
+
+/// Liste des fichiers supprimés d'un volume (`volume` : racine, ex. `E:\`), avec leur nom.
+/// Peut prendre plusieurs minutes sur un gros volume NTFS.
+#[tauri::command]
+pub async fn tsk_list(volume: String, app: AppHandle) -> Result<DeletedList, CommandError> {
+    crate::blocking(move || {
+        let tsk = locate_tsk(&tool_dirs(&app)).map_err(tool_err)?;
+        let device = volume_device(&PathBuf::from(&volume)).ok_or_else(|| {
+            CommandError::Tool(format!("{volume} n'est pas la racine d'un volume"))
+        })?;
+        list_deleted(&tsk, &device).map_err(tool_err)
+    })
+    .await?
+}
+
+/// Récupère les fichiers supprimés du volume `volume` vers `destination` (autre disque).
+/// Identifiant de tâche : `tsk`.
+#[tauri::command]
+pub fn start_tsk(
+    volume: String,
+    destination: String,
+    app: AppHandle,
+    jobs: State<'_, Arc<Jobs>>,
+) -> Result<String, CommandError> {
+    let tsk = locate_tsk(&tool_dirs(&app)).map_err(tool_err)?;
+    let mut job = TskJob::start(&tsk, &PathBuf::from(volume), &PathBuf::from(destination))
+        .map_err(tool_err)?;
+    jobs.start(&app, "tsk".into(), move |ctx| loop {
+        if ctx.cancel.load(Ordering::Relaxed) {
+            job.stop();
+            return Ok::<_, ()>(job.progress());
+        }
+        let p = job.progress();
+        ctx.progress(&p);
+        if !p.running {
+            // Dernière lecture : laisse au fil de sortie le temps de rendre le compte final.
+            std::thread::sleep(Duration::from_millis(300));
+            return Ok(job.progress());
+        }
+        std::thread::sleep(POLL);
+    })
+    .map_err(CommandError::Internal)?;
+    Ok("tsk".into())
 }

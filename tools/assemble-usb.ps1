@@ -43,6 +43,12 @@ if (Test-Path $testdisk) {
 } else {
     Write-Warning "PhotoRec absent : lancer tools\fetch-tools-windows.ps1"
 }
+$sleuthkit = Join-Path $tools "sleuthkit"
+if (Test-Path $sleuthkit) {
+    Copy-Item $sleuthkit (Join-Path $win "tools") -Recurse -Force
+} else {
+    Write-Warning "The Sleuth Kit absent : lancer tools\fetch-tools-windows.ps1"
+}
 
 $appimage = Join-Path $root "dist-usb\linux\10-4-pccheck.AppImage"
 if (-not (Test-Path $appimage)) { Write-Warning "AppImage Linux absente (voir tools/build-appimage.sh ou la CI)" }

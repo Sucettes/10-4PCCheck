@@ -118,6 +118,32 @@ export interface RecoveryStatus {
   default_destination: string;
   help: string;
   volumes: VolumeView[];
+  tsk: boolean;
+  testdisk: boolean;
+}
+
+export interface DeletedFile {
+  inode: string;
+  path: string;
+  is_dir: boolean;
+  size: number | null;
+  modified: string | null;
+}
+
+export interface DeletedList {
+  files: DeletedFile[];
+  total: number;
+  truncated: boolean;
+}
+
+export interface TskProgress {
+  running: boolean;
+  elapsed_s: number;
+  files_found: number;
+  bytes_found: number;
+  reported: number | null;
+  exit_code: number | null;
+  stopped_by_user: boolean;
 }
 
 export interface FoundFile {

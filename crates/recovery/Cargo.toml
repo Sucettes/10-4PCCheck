@@ -11,6 +11,8 @@ pccheck-core = { path = "../core" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+# Pseudo-terminal multiplateforme (ConPTY sous Windows, openpty sous Unix) pour TestDisk.
+portable-pty = "0.9"
 
 # Lancement de PhotoRec avec une console masquée, numéro de disque physique d'un volume,
 # liste des lecteurs et espace libre.

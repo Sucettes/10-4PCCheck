@@ -9,6 +9,7 @@ mod phone;
 mod recover;
 mod reports;
 mod self_test;
+mod terminal;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -323,6 +324,7 @@ fn main() {
             let smartctl = Smartctl::locate(&tool_dirs(app.handle()));
             app.manage(Arc::new(Jobs::default()));
             app.manage(Cache::default());
+            app.manage(Arc::new(terminal::Terminals::default()));
             app.manage(AppState {
                 smartctl,
                 self_test,
@@ -349,6 +351,13 @@ fn main() {
             recover::start_recovery,
             recover::recovery_found,
             recover::open_folder,
+            recover::tsk_list,
+            recover::start_tsk,
+            terminal::terminal_open,
+            terminal::terminal_write,
+            terminal::terminal_resize,
+            terminal::terminal_close,
+            terminal::open_console_window,
             reports::save_disk_report,
             reports::save_phone_report,
             reports::save_machine_report,

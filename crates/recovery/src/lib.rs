@@ -13,6 +13,7 @@
 
 pub mod advice;
 pub mod config;
+pub mod console;
 pub mod disk;
 pub mod error;
 pub mod job;
@@ -24,6 +25,7 @@ pub mod volumes;
 
 pub use advice::{trim_warning, SUPPORT_HELP};
 pub use config::{build_args, FileFamily, RecoveryConfig, Source};
+pub use console::{locate_console_tool, ConsoleTool, PtySession, Utf8Stream};
 pub use disk::{
     check_location, disk_from_smartctl_name, disk_from_smartctl_name_for, locate_destination,
     photorec_device_from_smartctl, validate_destination, DestinationLocation, DiskId, Platform,

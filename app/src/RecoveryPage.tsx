@@ -5,6 +5,18 @@ import { cancelJob, isOk, useJob } from "./jobs";
 import { errorMessage, type Load } from "./load";
 import type { FileFamily, RecoveryProgress, RecoveryStatus } from "./moreTypes";
 import type { DiskEntry, DiskInfo } from "./types";
+import { TestDiskTerminal } from "./TestDiskTerminal";
+import { TskPanel } from "./TskPanel";
+
+type Mode = "photorec" | "tsk" | "testdisk";
+/** Onglet gardé entre deux passages sur l'écran (TestDisk peut tourner en arrière-plan). */
+let savedMode: Mode = "photorec";
+
+const MODES: { id: Mode; label: string; hint: string }[] = [
+  { id: "photorec", label: "PhotoRec (guidé)", hint: "Par signatures : marche après formatage, noms perdus" },
+  { id: "tsk", label: "Noms conservés (The Sleuth Kit)", hint: "Par le système de fichiers : noms et dossiers gardés" },
+  { id: "testdisk", label: "TestDisk (terminal)", hint: "À la main : partitions perdues, fichiers supprimés" },
+];
 
 const FAMILIES: { id: FileFamily; label: string }[] = [
   { id: "photos", label: "Photos" },
@@ -38,6 +50,11 @@ export function RecoveryPage({ disks }: { disks: Load<DiskEntry[]> }) {
   const [trim, setTrim] = useState<string | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
   const [job, setJob] = useJob<RecoveryProgress, RecoveryProgress>(JOB);
+  const [mode, setModeState] = useState<Mode>(savedMode);
+  const setMode = (m: Mode) => {
+    savedMode = m;
+    setModeState(m);
+  };
 
   const disk: DiskInfo | undefined = readable.find((d) => d.device.name === source);
 
@@ -94,6 +111,18 @@ export function RecoveryPage({ disks }: { disks: Load<DiskEntry[]> }) {
           <h1>Récupération de fichiers</h1>
         </div>
       </header>
+
+      <div className="segmented mode-tabs" role="group" aria-label="Méthode de récupération">
+        {MODES.map((m) => (
+          <button key={m.id} type="button" aria-pressed={mode === m.id} onClick={() => setMode(m.id)} title={m.hint}>
+            {m.label}
+          </button>
+        ))}
+      </div>
+      {mode === "tsk" && st && <TskPanel status={st} />}
+      {mode === "testdisk" && <TestDiskTerminal available={st?.testdisk ?? false} />}
+      {mode === "photorec" && (
+        <>
 
       {st && !st.photorec && (
         <div className="banner banner-warn" role="status">
@@ -231,6 +260,8 @@ export function RecoveryPage({ disks }: { disks: Load<DiskEntry[]> }) {
             </tbody>
           </table>
         </section>
+      )}
+        </>
       )}
     </>
   );
