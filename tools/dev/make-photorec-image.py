@@ -8,7 +8,6 @@ SIZE = 64 << 20
 
 
 def png(w=64, h=48):
-    raw = b"".join(b"\x00" + bytes((x * 4 % 256, y * 5 % 256, (x + y) % 256) * 1)[:3] * 1 for y in range(h) for x in range(1))  # placeholder
     rows = []
     for y in range(h):
         row = bytearray([0])
