@@ -7,8 +7,11 @@ pub mod age;
 pub mod attributes;
 pub mod capacity;
 pub mod checks;
+#[cfg(windows)]
+mod devtree;
 pub mod disk;
 pub mod identify;
+pub mod pcie;
 pub mod process;
 pub mod rawio;
 pub mod selftest;

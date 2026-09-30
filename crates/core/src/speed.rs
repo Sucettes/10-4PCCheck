@@ -22,6 +22,7 @@ use thiserror::Error;
 
 use crate::capacity::free_space;
 use crate::disk::{DiskInfo, MediaKind, Protocol};
+use crate::pcie::PcieLink;
 use crate::rawio::{self, AlignedBuf, ALIGN};
 use crate::surface::BlockReader;
 use crate::usb::UsbLink;
@@ -147,6 +148,8 @@ pub struct SpeedResult {
     pub scale: Option<SpeedScale>,
     /// Liaison USB, si le disque est branché par un adaptateur ou un boîtier USB.
     pub usb: Option<UsbLink>,
+    /// Liaison PCIe d'un SSD NVMe.
+    pub pcie: Option<PcieLink>,
 }
 
 /// Lecture aux trois positions puis temps d'accès. `open` ouvre une nouvelle lecture du disque :
@@ -607,11 +610,15 @@ impl SpeedScale {
 /// Repères selon le type de disque (valeurs validées avec le propriétaire le 2026-09-30).
 /// Type inconnu : `None`, les mesures sont alors affichées sans jugement.
 pub fn speed_scale(info: &DiskInfo) -> Option<SpeedScale> {
-    speed_scale_with_link(info, None)
+    speed_scale_with_link(info, None, None)
 }
 
-/// Comme `speed_scale`, en tenant compte d'une liaison USB qui borne le débit.
-pub fn speed_scale_with_link(info: &DiskInfo, usb: Option<&UsbLink>) -> Option<SpeedScale> {
+/// Comme `speed_scale`, en tenant compte d'une liaison USB ou PCIe qui borne le débit.
+pub fn speed_scale_with_link(
+    info: &DiskInfo,
+    usb: Option<&UsbLink>,
+    pcie: Option<&PcieLink>,
+) -> Option<SpeedScale> {
     let (class, read, access) = match (&info.media, &info.protocol) {
         (_, Protocol::Nvme) => ("SSD NVMe".to_string(), Band::up(1500.0, 800.0), None),
         (MediaKind::Ssd, _) => ("SSD SATA".to_string(), Band::up(450.0, 300.0), None),
@@ -645,10 +652,18 @@ pub fn speed_scale_with_link(info: &DiskInfo, usb: Option<&UsbLink>) -> Option<S
     if let Some(link) = usb {
         notes.push(link.describe());
     }
-    let link_cap_mbps = [sata_cap, usb.map(UsbLink::cap_mbps)]
-        .into_iter()
-        .flatten()
-        .reduce(f64::min);
+    // Lien PCIe : décrit seulement s'il bride le disque (plus lent que ce qu'il sait faire).
+    if let Some(link) = pcie.filter(|l| l.is_degraded()) {
+        notes.push(link.describe());
+    }
+    let link_cap_mbps = [
+        sata_cap,
+        usb.map(UsbLink::cap_mbps),
+        pcie.map(PcieLink::cap_mbps),
+    ]
+    .into_iter()
+    .flatten()
+    .reduce(f64::min);
     Some(SpeedScale {
         class,
         read,
@@ -773,5 +788,39 @@ mod tests {
         );
         assert_eq!(scale.rate_throughput(&scale.read, 120.0), Rating::Weak);
         assert_eq!(scale.rate_throughput(&scale.read, 520.0), Rating::Good);
+    }
+
+    #[test]
+    fn slow_pcie_slot_caps_an_nvme_drive() {
+        use crate::disk::{DiskInfo, ScanDevice};
+        let json = include_str!("../tests/fixtures/nvme_generic.json");
+        let dev = ScanDevice {
+            name: "/dev/nvme0".into(),
+            info_name: "/dev/nvme0".into(),
+            dev_type: "nvme".into(),
+            protocol: "NVMe".into(),
+        };
+        let info: DiskInfo = crate::disk::parse_disk(json, &dev).unwrap();
+        // SSD PCIe 4.0 x4 sur un lien PCIe 3.0 x1 : environ 890 Mo/s au mieux, sous le repère
+        // « bon » des SSD NVMe (1 500 Mo/s).
+        let link = PcieLink {
+            current_gen: 3,
+            current_lanes: 1,
+            max_gen: Some(4),
+            max_lanes: Some(4),
+        };
+        let scale = speed_scale_with_link(&info, None, Some(&link)).unwrap();
+        assert!((scale.link_cap_mbps.unwrap() - 886.5).abs() < 0.1);
+        assert!(scale
+            .link_note
+            .as_deref()
+            .is_some_and(|n| n.contains("sait faire PCIe 4.0 x4")));
+        // Près du plafond du lien : c'est le lien qui est en cause, pas le disque.
+        assert_eq!(
+            scale.rate_throughput(&scale.read, 850.0),
+            Rating::LimitedByLink
+        );
+        // Bien en dessous du plafond : le disque lui-même est lent.
+        assert_eq!(scale.rate_throughput(&scale.read, 300.0), Rating::Weak);
     }
 }

@@ -96,14 +96,16 @@ pub fn start_speed_test(
             }
         };
         let usb = pccheck_core::usb::usb_link(&info.device.name);
+        let pcie = pccheck_core::pcie::pcie_link(&info.device.name);
         let result = SpeedResult {
             read,
             read_error,
             write,
             write_skipped,
             cancelled: ctx.cancel.load(std::sync::atomic::Ordering::Relaxed),
-            scale: speed_scale_with_link(&info, usb.as_ref()),
+            scale: speed_scale_with_link(&info, usb.as_ref(), pcie.as_ref()),
             usb,
+            pcie,
         };
         cache
             .lock()
