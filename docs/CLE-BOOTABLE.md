@@ -12,11 +12,10 @@ Ventoy garde une partition de données exFAT normale : on y copie les ISO **et**
 |---|---|---|
 | Ventoy | https://www.ventoy.net | Installation sur la clé : **efface la clé** |
 | MemTest86+ | https://www.memtest.org (image ISO « Linux ISO ») | Libre (GPL), démarre en BIOS et UEFI |
-| Linux live n° 1 | Ubuntu 24.04 LTS bureau (https://ubuntu.com/download/desktop) | **Par défaut.** Démarre avec Secure Boot actif (chargeur signé), pilotes graphiques et Wi-Fi larges, lance l'AppImage de l'outil |
-| Linux live n° 2 | SystemRescue (https://www.system-rescue.org) | **Secours léger** (~1 Go, démarre avec 2 Go de RAM) : smartctl, TestDisk, PhotoRec, ddrescue en ligne de commande, utiles si l'AppImage ne se lance pas. Pas de Secure Boot : à désactiver dans le BIOS |
+| Linux live | Ubuntu 24.04 LTS bureau (https://ubuntu.com/download/desktop) | Démarre avec Secure Boot actif (rien à changer dans le BIOS du vendeur) (chargeur signé), pilotes graphiques et Wi-Fi larges, lance l'AppImage de l'outil |
 | Dossier de l'outil | `tools/assemble-usb.ps1` puis `dist-usb/` | Voir le LISEZMOI de la clé |
 
-Taille de clé conseillée : 16 Go minimum (Ubuntu ~6 Go, SystemRescue ~1 Go, MemTest86+ ~20 Mo, outil ~100 Mo avec l'AppImage), 32 Go pour garder de la place aux rapports et aux récupérations.
+Taille de clé conseillée : 16 Go minimum (Ubuntu ~6 Go, MemTest86+ ~20 Mo, outil ~100 Mo avec l'AppImage), 32 Go pour garder de la place aux rapports et aux récupérations.
 
 ## Procédure (une fois, sur ton PC)
 
@@ -24,7 +23,7 @@ Taille de clé conseillée : 16 Go minimum (Ubuntu ~6 Go, SystemRescue ~1 Go, Me
 2. Lance `Ventoy2Disk.exe`, choisis la clé (vérifie la lettre et la taille deux fois), option **Secure Boot Support** cochée, puis **Install**.
 3. La clé réapparaît avec une partition `Ventoy` (exFAT). Copie à sa racine :
    - l'ISO de MemTest86+ ;
-   - l'ISO d'Ubuntu, et celle de SystemRescue si tu veux le secours léger ;
+   - l'ISO d'Ubuntu ;
    - le contenu de `dist-usb/` dans un dossier `PCCheck/` (voir `tools/assemble-usb.ps1`).
 4. Optionnel : `ventoy/ventoy.json` pour renommer les entrées du menu (« Test RAM complet », « Linux de secours »).
 
@@ -35,7 +34,6 @@ Taille de clé conseillée : 16 Go minimum (Ubuntu ~6 Go, SystemRescue ~1 Go, Me
 3. Menu Ventoy :
    - **MemTest86+** : laisse tourner au moins un passage complet (15 à 60 min selon la RAM). Une seule erreur = barrette défectueuse.
    - **Ubuntu** : « Essayer Ubuntu », puis ouvre le dossier `PCCheck/linux/` de la partition Ventoy et lance l'AppImage avec `sudo` depuis un terminal pour lire les disques.
-   - **SystemRescue** (Secure Boot désactivé) : invite de commande root ; `smartctl -a /dev/sda`, `testdisk`, `photorec` directement, ou `startx` pour un bureau léger.
 
 ## Limites connues
 

@@ -27,7 +27,6 @@ fn devices_mixed_states() {
     assert_eq!(d.len(), 5);
 
     assert_eq!(d[0].serial, "R58N00000XX");
-    assert_eq!(d[0].serial_masked, "R5*******XX");
     assert_eq!(d[0].state, DeviceState::Device);
     assert_eq!(d[0].model.as_deref(), Some("SM_G973W"));
     assert_eq!(d[0].product.as_deref(), Some("beyond1ltevl"));

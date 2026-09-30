@@ -15,7 +15,7 @@ import {
   trimHint,
   type HintText,
 } from "./hints";
-import { formatBytes, formatHex, formatNumber, maskSerial, mediaLabel } from "./format";
+import { formatBytes, formatHex, formatNumber, mediaLabel } from "./format";
 import { SelfTests } from "./SelfTests";
 import { SurfaceScan } from "./SurfaceScan";
 import { CapacityTest } from "./CapacityTest";
@@ -166,7 +166,6 @@ function Checks({ checks }: { checks: Check[] }) {
 }
 
 function TechSheet({ disk }: { disk: DiskInfo }) {
-  const [showSerial, setShowSerial] = useState(false);
   const iface =
     disk.protocol === "nvme"
       ? "PCIe NVMe"
@@ -178,12 +177,7 @@ function TechSheet({ disk }: { disk: DiskInfo }) {
       label: "Numéro de série",
       hint: serialHint,
       value: disk.serial ? (
-        <span className="serial">
-          <span className="mono">{showSerial ? disk.serial : maskSerial(disk.serial)}</span>
-          <button type="button" className="link-btn" onClick={() => setShowSerial((v) => !v)}>
-            {showSerial ? "Masquer" : "Afficher"}
-          </button>
-        </span>
+        <span className="mono">{disk.serial}</span>
       ) : (
         "Inconnu"
       ),

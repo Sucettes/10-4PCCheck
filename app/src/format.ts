@@ -23,11 +23,6 @@ export function formatHex(n: number): string {
   return n.toString(16).toUpperCase().padStart(12, "0");
 }
 
-/** Numéro de série masqué sauf les 4 premiers caractères (captures d'écran partagées). */
-export function maskSerial(serial: string): string {
-  return serial.length <= 4 ? serial : serial.slice(0, 4) + "•".repeat(serial.length - 4);
-}
-
 /**
  * Étiquette qui distingue un disque des autres : ses lettres de lecteur et leur nom (« C: · D: Data »),
  * plus la fin du numéro de série si un autre disque a le même modèle.

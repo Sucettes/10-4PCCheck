@@ -8,8 +8,8 @@
 //! - `evaluate` : constats vert/jaune/rouge selon les règles du plan.
 //! - `checklist` : vérifications manuelles.
 //!
-//! Confidentialité : le rapport ne contient jamais l'adresse d'un compte (seulement le nombre de
-//! comptes par type), ni l'IMEI, ni le numéro de série en clair (masqué par `mask_serial`).
+//! Contenu du rapport : numéro de série en clair (outil personnel) ; ni l'adresse d'un compte
+//! (seulement le nombre de comptes par type) ni l'IMEI, inutiles au diagnostic.
 
 pub mod accounts;
 pub mod adb;
@@ -32,7 +32,7 @@ pub use checklist::{manual_checklist, ChecklistItem};
 pub use collect::{assemble, CollectIssue, CollectStep, PhoneReport, RawCollection};
 pub use date::{today, Date};
 pub use devices::{
-    mask_serial, no_device_guidance, no_device_guidance_for, parse_devices, AdbDevice, DeviceState,
+    no_device_guidance, no_device_guidance_for, parse_devices, AdbDevice, DeviceState,
 };
 pub use evaluate::{evaluate, verdict, Finding, FindingLevel};
 pub use owners::{parse_dpm_list_owners, parse_dumpsys_device_policy, DeviceOwners, ProfileOwner};

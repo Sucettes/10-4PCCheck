@@ -43,7 +43,7 @@ pub struct ComputerInfo {
     pub manufacturer: Option<String>,
     pub model: Option<String>,
     /// Numéro de série du fabricant (utile pour vérifier la garantie ou un signalement de vol).
-    /// L'interface le masque par défaut. Sous Linux, lisible seulement en root.
+    /// Affiché en clair (outil personnel). Sous Linux, lisible seulement en root.
     pub serial_number: Option<String>,
 }
 

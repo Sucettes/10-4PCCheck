@@ -7,7 +7,6 @@ use serde::Serialize;
 
 use crate::accounts::{parse_dumpsys_account, AccountCount};
 use crate::battery::{parse_dumpsys_battery, BatteryInfo};
-use crate::devices::mask_serial;
 use crate::owners::{parse_dpm_list_owners, parse_dumpsys_device_policy, DeviceOwners};
 use crate::props::{
     identity_from_props, parse_getprop, parse_which_su, security_from_props, DeviceIdentity,
@@ -66,10 +65,11 @@ pub struct RawCollection {
 }
 
 /// Rapport d'un téléphone, destiné à l'affichage et au rapport enregistré.
-/// Ne contient ni numéro de série en clair, ni adresse de compte, ni IMEI.
+/// Contient le numéro de série (outil personnel), mais ni adresse de compte ni IMEI : ils ne
+/// servent pas au diagnostic.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct PhoneReport {
-    pub serial_masked: String,
+    pub serial: String,
     pub identity: DeviceIdentity,
     pub security: SecurityState,
     pub battery: Option<BatteryInfo>,
@@ -142,7 +142,7 @@ pub fn assemble(serial: &str, raw: &RawCollection) -> PhoneReport {
     });
 
     PhoneReport {
-        serial_masked: mask_serial(serial),
+        serial: serial.to_string(),
         identity: identity_from_props(&props),
         security,
         battery,

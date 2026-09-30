@@ -13,7 +13,7 @@ use thiserror::Error;
 
 use crate::battery::SYSFS_BATTERY_DIR;
 use crate::collect::{assemble, CollectIssue, CollectStep, PhoneReport, RawCollection};
-use crate::devices::{mask_serial, parse_devices, AdbDevice, DeviceState};
+use crate::devices::{parse_devices, AdbDevice, DeviceState};
 use crate::owners::parse_dpm_list_owners;
 use crate::props::parse_getprop;
 
@@ -255,13 +255,7 @@ impl Adb {
     fn shell(&self, serial: &str, command: &[&str]) -> Result<String, AdbError> {
         let mut args = vec!["-s", serial, "shell"];
         args.extend_from_slice(command);
-        match self.run(&args, self.timeout) {
-            Err(AdbError::Timeout { seconds, args }) => Err(AdbError::Timeout {
-                seconds,
-                args: args.replace(serial, &mask_serial(serial)),
-            }),
-            other => other,
-        }
+        self.run(&args, self.timeout)
     }
 
     /// Lance adb et renvoie sa sortie standard. Le code de sortie n'est pas une erreur ici :

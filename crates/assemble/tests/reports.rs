@@ -123,7 +123,10 @@ fn phone_report_counts_findings_and_keeps_checklist() {
         rep.verdict.warn + rep.verdict.bad > 0,
         "compte Google connecté"
     );
-    assert!(!html.contains("R58N00000XX"), "série jamais en clair");
+    assert!(
+        html.contains("R58N00000XX"),
+        "série en clair (outil personnel)"
+    );
     assert!(!html.contains("@example.com"), "aucune adresse de compte");
     assert_eq!(rep.checklist.len(), 1);
 }

@@ -4,7 +4,6 @@ export type DeviceState = "device" | "unauthorized" | "offline" | "no_permission
 
 export interface AdbDevice {
   serial: string;
-  serial_masked: string;
   state: DeviceState;
   model: string | null;
   product: string | null;
@@ -29,7 +28,7 @@ export interface Finding {
 }
 
 export interface PhoneReport {
-  serial_masked: string;
+  serial: string;
   identity: {
     manufacturer: string | null;
     brand: string | null;

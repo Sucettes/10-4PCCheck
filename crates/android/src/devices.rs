@@ -88,11 +88,8 @@ impl fmt::Display for DeviceState {
 /// Un appareil listé par `adb devices -l`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct AdbDevice {
-    /// Numéro de série brut. Sert seulement à adresser l'appareil (`adb -s`) : ne pas l'afficher
-    /// ni l'enregistrer dans un rapport, utiliser `serial_masked`.
+    /// Numéro de série (adresse de l'appareil pour `adb -s`), affiché tel quel : outil personnel.
     pub serial: String,
-    /// Numéro de série masqué, pour l'affichage (voir `mask_serial`).
-    pub serial_masked: String,
     pub state: DeviceState,
     /// Modèle vu par adb : espaces et tirets remplacés par `_` (`SM_G973W`, `Pixel_7`).
     pub model: Option<String>,
@@ -128,7 +125,6 @@ fn parse_device_line(line: &str) -> Option<AdbDevice> {
     let mut state_words: Vec<&str> = Vec::new();
     let mut device = AdbDevice {
         serial: serial.to_string(),
-        serial_masked: mask_serial(serial),
         state: DeviceState::Device,
         model: None,
         product: None,
@@ -189,36 +185,9 @@ pub fn no_device_guidance_for(windows: bool) -> String {
     text
 }
 
-/// Masque un numéro de série pour l'affichage : garde les 2 premiers et les 2 derniers caractères
-/// (1 et 1 pour une série courte), remplace le reste par `*`. Assez pour distinguer deux
-/// téléphones branchés, pas assez pour identifier l'appareil.
-pub fn mask_serial(serial: &str) -> String {
-    let chars: Vec<char> = serial.chars().collect();
-    let n = chars.len();
-    let keep = match n {
-        0..=4 => 0,
-        5..=7 => 1,
-        _ => 2,
-    };
-    chars
-        .iter()
-        .enumerate()
-        .map(|(i, c)| if i < keep || i >= n - keep { *c } else { '*' })
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn masks_serials() {
-        assert_eq!(mask_serial("R58N00000XX"), "R5*******XX");
-        assert_eq!(mask_serial("ABC123"), "A****3");
-        assert_eq!(mask_serial("ABCD"), "****");
-        assert_eq!(mask_serial(""), "");
-        assert_eq!(mask_serial("192.168.1.50:5555"), "19*************55");
-    }
 
     #[test]
     fn no_device_guidance_mentions_driver_only_on_windows() {

@@ -70,7 +70,7 @@ export function PhonePage() {
           <h1>{title}</h1>
           {id && (
             <p className="muted">
-              {[id.android_version && `Android ${id.android_version}`, a?.report.storage && formatBytes(a.report.storage.total_bytes), a?.report.serial_masked]
+              {[id.android_version && `Android ${id.android_version}`, a?.report.storage && formatBytes(a.report.storage.total_bytes), a?.report.serial]
                 .filter(Boolean)
                 .join(" · ")}
             </p>
@@ -139,7 +139,7 @@ function DeviceList({
             <div>
               <div className="device-name">{dev.model?.replace(/_/g, " ") ?? dev.product ?? "Appareil Android"}</div>
               <div className="muted small">
-                {dev.serial_masked} · {stateLabel(dev)}
+                {dev.serial} · {stateLabel(dev)}
               </div>
               {dev.guidance && <p className="guidance">{dev.guidance}</p>}
             </div>

@@ -69,7 +69,7 @@ fn with_patch(date: &str) -> PhoneReport {
 fn clean_phone_is_green() {
     let report = assemble("2A000000XX000", &clean_pixel());
     assert!(report.issues.is_empty(), "{:?}", report.issues);
-    assert_eq!(report.serial_masked, "2A*********00");
+    assert_eq!(report.serial, "2A000000XX000");
     assert_eq!(report.security.root.su_found, Some(false));
     let battery = report.battery.as_ref().unwrap();
     assert_eq!(battery.capacity_pct, Some(94));
@@ -134,18 +134,17 @@ fn problem_phone_is_red() {
 }
 
 #[test]
-fn report_never_contains_raw_serial_or_account_names() {
+fn report_shows_serial_but_never_account_names() {
     let report = assemble("R58N00000XX", &samsung_with_problems());
     let json = serde_json::to_string(&report).unwrap();
-    assert!(!json.contains("R58N00000XX"), "série en clair dans {json}");
-    assert!(json.contains("R5*******XX"));
+    // Outil personnel : le numéro de série est affiché tel quel.
+    assert!(json.contains("R58N00000XX"));
     assert!(
         !json.contains("example.com"),
         "adresse de compte dans le rapport"
     );
     assert!(!json.contains("Propriétaire"), "nom d'utilisateur Android");
     let findings = serde_json::to_string(&evaluate(&report, today())).unwrap();
-    assert!(!findings.contains("R58N00000XX"));
     assert!(!findings.contains("example.com"));
 }
 

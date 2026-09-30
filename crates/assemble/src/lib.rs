@@ -353,10 +353,7 @@ pub fn build_phone_report(r: &Results, checklist: Vec<ChecklistEntry>) -> Result
     } else {
         name
     };
-    let mut details = vec![Detail::new(
-        "Numéro de série",
-        rep_phone.serial_masked.clone(),
-    )];
+    let mut details = vec![Detail::new("Numéro de série", rep_phone.serial.clone())];
     if let Some(v) = &id.android_version {
         details.push(Detail::new("Android", v.clone()));
     }

@@ -316,7 +316,7 @@ Claude vérifie tout ce qui peut l'être sans matériel réel. Le propriétaire 
 
 ### Phase 4 · Téléphone Android
 - [x] ADB recherché dans tools/ de la clé (`tools/fetch-tools-windows.ps1` le télécharge), détection et guide pour activer le débogage USB.
-- [x] Collecte (voir section 5) et écran selon la maquette. Aucune adresse de compte ni série en clair dans le rapport.
+- [x] Collecte (voir section 5) et écran selon la maquette. Aucune adresse de compte dans le rapport ; numéro de série en clair (outil personnel, décidé le 2026-09-30).
 - [x] Liste de vérifications manuelles enregistrée dans le rapport.
 
 ### Phase 5 · Récupération
@@ -359,8 +359,8 @@ Claude vérifie tout ce qui peut l'être sans matériel réel. Le propriétaire 
 4. Seuils du verdict (section 4) : à valider sur de vrais appareils.
 5. ~~Test de charge GPU~~ : **décidé : oui** (voir phase 3).
 6. ~~Nom final~~ : **décidé : PCCheck** (exécutable `PCCheck.exe`, AppImage `PCCheck.AppImage`, dossier `PCCheck/` sur la clé). Le dépôt garde son nom `10-4PCCheck`.
-7. Distribution Linux du live USB (phase 6) : deux propositions soumises au propriétaire (Ubuntu 24.04 LTS par défaut, SystemRescue en secours léger ; voir `docs/CLE-BOOTABLE.md`).
-8. Numéro de série du disque et de la machine dans les rapports : en clair aujourd'hui (utile pour comparer à l'étiquette, mais le rapport peut être partagé). Le téléphone, lui, est masqué. À trancher.
+7. ~~Distribution Linux du live USB~~ : **décidé (2026-09-30) : Ubuntu 24.04 LTS** (Secure Boot actif, voir `docs/CLE-BOOTABLE.md`).
+8. ~~Numéros de série~~ : **décidé (2026-09-30) : en clair partout** (disque, machine, téléphone ; écran et rapports). Outil personnel : l'information doit rester visible.
 
 ---
 
