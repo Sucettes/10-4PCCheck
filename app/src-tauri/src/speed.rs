@@ -6,7 +6,7 @@ use std::sync::Arc;
 use pccheck_core::age::{current_year, estimate_age, DiskAge};
 use pccheck_core::rawio;
 use pccheck_core::speed::{
-    read_test, speed_scale, write_test, SpeedResult, WriteSkip, WRITE_BYTES,
+    read_test, speed_scale, write_test, SpeedResult, WriteSkip, WRITE_BYTES, WRITE_SIZES_GIB,
 };
 use pccheck_core::DiskInfo;
 use tauri::{AppHandle, State};
@@ -24,10 +24,12 @@ fn disk_info(cache: &Cache, device: &str) -> Option<DiskInfo> {
 }
 
 /// Test de vitesse (lecture, temps d'accès, écriture dans l'espace libre). Identifiant :
-/// `speed:<chemin smartctl>`. Environ une minute.
+/// `speed:<chemin smartctl>`. Environ une minute avec 1 Gio écrit. `write_gib` : 1, 5 ou 10
+/// (1 par défaut, analyse complète).
 #[tauri::command]
 pub fn start_speed_test(
     device: String,
+    write_gib: Option<u64>,
     app: AppHandle,
     jobs: State<'_, Arc<Jobs>>,
     cache: State<'_, Cache>,
@@ -42,6 +44,15 @@ pub fn start_speed_test(
             "ce disque ne peut pas être lu directement ({device})"
         ))
     })?;
+    let write_bytes = match write_gib {
+        None => WRITE_BYTES,
+        Some(g) if WRITE_SIZES_GIB.contains(&g) => g << 30,
+        Some(g) => {
+            return Err(CommandError::Tool(format!(
+                "taille d'écriture non prévue : {g} Go"
+            )))
+        }
+    };
     let id = format!("speed:{device}");
     let cache = cache.inner().clone();
     jobs.start(&app, id.clone(), move |ctx| {
@@ -74,7 +85,7 @@ pub fn start_speed_test(
         } else {
             match volume {
                 None => (None, Some(WriteSkip::NoVolume.to_string())),
-                Some(v) => match write_test(&v.path, WRITE_BYTES, &ctx.cancel, |p| ctx.progress(p))
+                Some(v) => match write_test(&v.path, write_bytes, &ctx.cancel, |p| ctx.progress(p))
                 {
                     Ok(w) => (Some(w), None),
                     Err(e) => (None, Some(e.to_string())),

@@ -488,3 +488,6 @@ kbd { padding: 0 4px; border: 1px solid var(--border-strong); border-radius: 4px
 .zone-good { background: #a8dcbd; }
 .scale-marker { position: absolute; top: -4px; width: 3px; height: 16px; margin-left: -1px; border-radius: 2px; background: var(--text); box-shadow: 0 0 0 2px #fff; }
 .speed-summary { display: flex; flex-direction: column; gap: 4px; }
+.chart-read { fill: none; stroke: var(--good-dot); stroke-width: 2; }
+.chart-band { stroke: var(--text-2); stroke-width: 1; stroke-dasharray: 4 4; opacity: 0.5; }
+.legend-read { color: var(--good-text); font-weight: 600; }

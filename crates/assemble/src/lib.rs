@@ -440,9 +440,14 @@ fn speed_items(sp: &SpeedResult) -> Vec<Item> {
     match (&sp.write, &sp.write_skipped) {
         (Some(w), _) => {
             let detail = format!(
-                "Fichier neuf de {} écrit dans l'espace libre de {}, puis supprimé.",
-                fmt_bytes(w.bytes),
-                w.volume
+                "Fichier neuf de {} Go écrit dans l'espace libre de {}, relu puis supprimé. Débit \
+                 de {} au plus bas à {} au plus haut (sur un SSD, la chute marque la fin de son \
+                 cache rapide).",
+                // Même unité que le choix de taille à l'écran (1, 5, 10 Go = × 1024³ octets).
+                w.bytes >> 30,
+                w.volume,
+                mbps_text(w.min_mbps),
+                mbps_text(w.max_mbps)
             );
             let item = match scale {
                 Some(sc) => {
@@ -457,6 +462,48 @@ fn speed_items(sp: &SpeedResult) -> Vec<Item> {
                 None => Item::new("Écriture", mbps_text(w.mbps), Level::Info).with_detail(detail),
             };
             items.push(item);
+            if let Some(rb) = &w.readback {
+                let detail = "Lecture du fichier qui vient d'être écrit : des données réelles. \
+                              Plus fiable que la lecture directe sur un disque neuf ou SMR, qui \
+                              répond sans lire sur une zone jamais écrite.";
+                let item = match scale {
+                    Some(sc) => {
+                        let (word, level) = rating_level(sc.rate_throughput(&sc.read, rb.mbps));
+                        Item::new(
+                            "Relecture (données réelles)",
+                            format!("{} · {word}", mbps_text(rb.mbps)),
+                            level,
+                        )
+                        .with_detail(detail)
+                    }
+                    None => Item::new(
+                        "Relecture (données réelles)",
+                        mbps_text(rb.mbps),
+                        Level::Info,
+                    )
+                    .with_detail(detail),
+                };
+                items.push(item);
+            }
+            if w.readback_errors > 0 {
+                items.push(
+                    Item::new(
+                        "Données relues différentes",
+                        format!("{} bloc(s) de 8 Mo", fmt_int(w.readback_errors)),
+                        Level::Bad,
+                    )
+                    .with_detail(
+                        "Le disque a rendu d'autres données que celles écrites : défaut grave \
+                         (mémoire, contrôleur ou surface).",
+                    ),
+                );
+            }
+            if let Some(e) = &w.readback_error {
+                items.push(
+                    Item::new("Relecture", "Impossible", Level::Warn)
+                        .with_detail(format!("Le fichier de test n'a pas pu être relu : {e}")),
+                );
+            }
         }
         (None, Some(why)) => items
             .push(Item::new("Écriture", "Non mesurée", Level::Neutral).with_detail(why.clone())),

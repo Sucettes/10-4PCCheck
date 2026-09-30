@@ -33,8 +33,12 @@ const SSD_CHUNK: usize = 8 << 20;
 const SSD_PARALLEL: usize = 4;
 const ACCESS_SAMPLES: u32 = 100;
 const ACCESS_BYTES: usize = ALIGN;
-/// Taille du fichier écrit pour mesurer l'écriture.
+/// Taille du fichier écrit par défaut (analyse complète).
 pub const WRITE_BYTES: u64 = 1 << 30;
+/// Tailles proposées à l'écran d'un disque, en Gio.
+pub const WRITE_SIZES_GIB: [u64; 3] = [1, 5, 10];
+/// Intervalle entre deux relevés de débit.
+const SAMPLE_EVERY: Duration = Duration::from_millis(500);
 /// Espace libre à laisser en plus du fichier : le volume ne doit jamais se retrouver plein.
 const WRITE_MARGIN: u64 = 2 << 30;
 const WRITE_CHUNK: usize = 8 << 20;
@@ -47,6 +51,8 @@ pub enum SpeedStep {
     Read,
     Access,
     Write,
+    /// Relecture du fichier écrit.
+    Readback,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -54,6 +60,15 @@ pub struct SpeedProgress {
     pub step: SpeedStep,
     /// Avancement de l'étape, de 0 à 100.
     pub pct: u8,
+    /// Dernier relevé de débit (écriture et relecture), pour la courbe en direct.
+    pub sample: Option<RateSample>,
+}
+
+/// Débit relevé sur la dernière demi-seconde, à une position du fichier de test.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct RateSample {
+    pub at_bytes: u64,
+    pub mbps: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -80,8 +95,19 @@ pub struct ReadSpeed {
 pub struct WriteSpeed {
     /// Volume où le fichier de test a été écrit.
     pub volume: String,
+    /// Débit moyen d'écriture, puis extrêmes des relevés.
     pub mbps: f64,
+    pub min_mbps: f64,
+    pub max_mbps: f64,
     pub bytes: u64,
+    /// Courbe de l'écriture.
+    pub samples: Vec<RateSample>,
+    /// Relecture sans cache du même fichier : vitesse de lecture sur des données réelles (un
+    /// disque SMR ou un SSD répond instantanément sur une zone jamais écrite).
+    pub readback: Option<Throughput>,
+    /// Blocs de 8 Mio relus différents de ce qui a été écrit : défaut grave.
+    pub readback_errors: u64,
+    pub readback_error: Option<String>,
 }
 
 #[derive(Debug, Clone, Error, Serialize, PartialEq, Eq)]
@@ -151,6 +177,7 @@ pub fn read_test<R: BlockReader>(
         on_progress(&SpeedProgress {
             step: SpeedStep::Read,
             pct: ((i + 1) * 100 / positions.len()) as u8,
+            sample: None,
         });
     }
     let access = if cancel.load(Ordering::Relaxed) {
@@ -264,6 +291,7 @@ fn access_test<R: BlockReader>(
             on_progress(&SpeedProgress {
                 step: SpeedStep::Access,
                 pct: ((i + 1) * 100 / ACCESS_SAMPLES) as u8,
+                sample: None,
             });
         }
     }
@@ -278,8 +306,10 @@ fn access_test<R: BlockReader>(
     })
 }
 
-/// Écrit un fichier neuf de `bytes` octets dans `dir` sans cache, puis le supprime (même en cas
-/// d'erreur ou d'arrêt). Refus si l'espace libre ne laisse pas au moins 2 Gio après le fichier.
+/// Écrit un fichier neuf de `bytes` octets dans `dir` sans cache, le relit sans cache en
+/// vérifiant chaque bloc, puis le supprime (même en cas d'erreur ou d'arrêt). Refus si l'espace
+/// libre ne laisse pas au moins 2 Gio après le fichier. Le débit est relevé toutes les demi-
+/// secondes : sur un SSD, la courbe montre le cache rapide qui se remplit puis la vraie vitesse.
 pub fn write_test(
     dir: &Path,
     bytes: u64,
@@ -300,7 +330,7 @@ pub fn write_test(
     // `create_new` : si ce nom existait, on s'arrête au lieu d'écrire dedans.
     let mut file =
         rawio::create_new_uncached(&path).map_err(|e| WriteSkip::Create(e.to_string()))?;
-    let _cleanup = RemoveOnDrop(path);
+    let _cleanup = RemoveOnDrop(path.clone());
 
     // Contenu pseudo-aléatoire : certains contrôleurs de SSD compressent les zéros, ce qui
     // gonflerait la mesure.
@@ -312,10 +342,11 @@ pub fn write_test(
         x ^= x << 17;
         *word = x.to_le_bytes();
     }
-    let total = align_down(bytes, WRITE_CHUNK as u64);
-    let start = Instant::now();
+    let total = align_down(bytes, WRITE_CHUNK as u64).max(WRITE_CHUNK as u64);
+
+    // Écriture.
+    let mut sampler = Sampler::new();
     let mut done = 0u64;
-    let mut last_pct = 0;
     while done < total {
         if cancel.load(Ordering::Relaxed) {
             return Err(WriteSkip::Cancelled);
@@ -323,24 +354,129 @@ pub fn write_test(
         file.write_all(&buf)
             .map_err(|e| WriteSkip::Write(e.to_string()))?;
         done += WRITE_CHUNK as u64;
-        let pct = (done * 100 / total) as u8;
-        if pct >= last_pct + 10 {
-            last_pct = pct;
+        if let Some(sample) = sampler.tick(done) {
             on_progress(&SpeedProgress {
                 step: SpeedStep::Write,
-                pct,
+                pct: (done * 100 / total) as u8,
+                sample: Some(sample),
             });
         }
     }
     // Les données doivent être sur le disque, pas dans un cache, avant d'arrêter le chrono.
     file.sync_all()
         .map_err(|e| WriteSkip::Write(e.to_string()))?;
-    let elapsed = start.elapsed();
+    let written = sampler.finish(done);
+    drop(file);
+
+    // Relecture sans cache et comparaison bloc par bloc avec ce qui a été écrit.
+    let (readback, readback_errors, readback_error) = match rawio::open_uncached(&path) {
+        Err(e) => (None, 0, Some(e.to_string())),
+        Ok(f) => {
+            let mut rbuf = AlignedBuf::new(WRITE_CHUNK);
+            let mut sampler = Sampler::new();
+            let mut read = 0u64;
+            let mut mismatches = 0u64;
+            let mut error = None;
+            while read < done {
+                if cancel.load(Ordering::Relaxed) {
+                    return Err(WriteSkip::Cancelled);
+                }
+                if let Err(e) = rawio::read_exact_at(&f, &mut rbuf, read) {
+                    error = Some(e.to_string());
+                    break;
+                }
+                if rbuf[..] != buf[..] {
+                    mismatches += 1;
+                }
+                read += WRITE_CHUNK as u64;
+                if let Some(sample) = sampler.tick(read) {
+                    on_progress(&SpeedProgress {
+                        step: SpeedStep::Readback,
+                        pct: (read * 100 / done) as u8,
+                        sample: Some(sample),
+                    });
+                }
+            }
+            let complete = error.is_none();
+            (complete.then(|| sampler.finish(read)), mismatches, error)
+        }
+    };
     Ok(WriteSpeed {
         volume: dir.display().to_string(),
-        mbps: mbps(done, elapsed),
+        mbps: written.mbps,
+        min_mbps: written.min_mbps,
+        max_mbps: written.max_mbps,
         bytes: done,
+        samples: written.samples,
+        readback,
+        readback_errors,
+        readback_error,
     })
+}
+
+/// Relevé du débit toutes les `SAMPLE_EVERY`, pour tracer la courbe.
+struct Sampler {
+    start: Instant,
+    last_t: Instant,
+    last_bytes: u64,
+    samples: Vec<RateSample>,
+}
+
+/// Débit mesuré sur une série de relevés.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Throughput {
+    /// Moyenne sur toute l'opération.
+    pub mbps: f64,
+    pub min_mbps: f64,
+    pub max_mbps: f64,
+    pub samples: Vec<RateSample>,
+}
+
+impl Sampler {
+    fn new() -> Sampler {
+        let now = Instant::now();
+        Sampler {
+            start: now,
+            last_t: now,
+            last_bytes: 0,
+            samples: Vec::new(),
+        }
+    }
+
+    /// Nouveau relevé si une demi-seconde s'est écoulée depuis le précédent.
+    fn tick(&mut self, done: u64) -> Option<RateSample> {
+        let now = Instant::now();
+        let dt = now.duration_since(self.last_t);
+        if dt < SAMPLE_EVERY {
+            return None;
+        }
+        let sample = RateSample {
+            at_bytes: done,
+            mbps: mbps(done - self.last_bytes, dt),
+        };
+        self.samples.push(sample.clone());
+        (self.last_t, self.last_bytes) = (now, done);
+        Some(sample)
+    }
+
+    /// Dernier relevé partiel (s'il dure assez pour être significatif), puis synthèse.
+    fn finish(mut self, done: u64) -> Throughput {
+        let dt = self.last_t.elapsed();
+        if done > self.last_bytes && (dt >= SAMPLE_EVERY / 5 || self.samples.is_empty()) {
+            self.samples.push(RateSample {
+                at_bytes: done,
+                mbps: mbps(done - self.last_bytes, dt),
+            });
+        }
+        let rates = self.samples.iter().map(|s| s.mbps);
+        let min = rates.clone().fold(f64::INFINITY, f64::min);
+        Throughput {
+            mbps: mbps(done, self.start.elapsed()),
+            min_mbps: if min.is_finite() { min } else { 0.0 },
+            max_mbps: rates.fold(0.0, f64::max),
+            samples: self.samples,
+        }
+    }
 }
 
 struct RemoveOnDrop(PathBuf);
@@ -550,6 +686,10 @@ mod tests {
         let w = write_test(&dir, 16 << 20, &AtomicBool::new(false), |_| {}).unwrap();
         assert_eq!(w.bytes, 16 << 20);
         assert!(w.mbps > 0.0);
+        assert!(!w.samples.is_empty(), "au moins un relevé");
+        let rb = w.readback.expect("relecture faite");
+        assert!(rb.mbps > 0.0);
+        assert_eq!(w.readback_errors, 0, "données relues identiques");
         let left = std::fs::read_dir(&dir).unwrap().count();
         assert_eq!(left, 0, "fichier de test supprimé");
         let _ = std::fs::remove_dir_all(&dir);

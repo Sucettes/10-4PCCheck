@@ -207,9 +207,22 @@ export interface SpeedScale {
   link_cap_mbps: number | null;
 }
 
+export interface RateSample {
+  at_bytes: number;
+  mbps: number;
+}
+
+export interface Throughput {
+  mbps: number;
+  min_mbps: number;
+  max_mbps: number;
+  samples: RateSample[];
+}
+
 export interface SpeedProgress {
-  step: "read" | "access" | "write";
+  step: "read" | "access" | "write" | "readback";
   pct: number;
+  sample: RateSample | null;
 }
 
 export interface SpeedResult {
@@ -218,7 +231,17 @@ export interface SpeedResult {
     access: { avg_ms: number; max_ms: number; samples: number } | null;
   } | null;
   read_error: string | null;
-  write: { volume: string; mbps: number; bytes: number } | null;
+  write: {
+    volume: string;
+    mbps: number;
+    min_mbps: number;
+    max_mbps: number;
+    bytes: number;
+    samples: RateSample[];
+    readback: Throughput | null;
+    readback_errors: number;
+    readback_error: string | null;
+  } | null;
   write_skipped: string | null;
   cancelled: boolean;
   scale: SpeedScale | null;

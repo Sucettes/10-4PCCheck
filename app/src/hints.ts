@@ -286,7 +286,9 @@ export const speedHint: HintText = {
   body: [
     "Lecture : 256 Mo lus au début, au milieu et à la fin du disque. Sur un disque dur, la fin est normalement environ deux fois plus lente que le début.",
     "Temps d'accès : 100 lectures à des endroits pris au hasard. C'est la lenteur ressentie quand on ouvre beaucoup de petits fichiers (Windows, programmes, photos) ; c'est souvent la première chose qui se dégrade sur un vieux disque dur.",
-    "Écriture : un fichier neuf de 1 Go est écrit dans l'espace libre puis supprimé. Aucun fichier existant n'est touché. Un fichier supprimé encore récupérable peut en revanche être écrasé : ne lance pas ce test sur un disque dont tu veux récupérer des fichiers.",
+    "Écriture : un fichier neuf (1, 5 ou 10 Go au choix) est écrit dans l'espace libre, relu en vérifiant chaque bloc, puis supprimé. Aucun fichier existant n'est touché. Un fichier supprimé encore récupérable peut en revanche être écrasé : ne lance pas ce test sur un disque dont tu veux récupérer des fichiers.",
+    "Relecture : la vitesse de lecture sur ces données réelles. Plus fiable que la lecture directe sur un disque neuf, un disque SMR ou un SSD, qui répondent instantanément sur une zone jamais écrite. Un bloc relu différent de ce qui a été écrit est un défaut grave.",
+    "La courbe montre le débit tout au long du fichier : sur un SSD, une chute nette en cours de route marque la fin de son cache rapide.",
     "Chaque valeur est comparée aux repères de son type de disque : 150 Mo/s est excellent pour un disque dur et très faible pour un SSD NVMe.",
   ],
 };

@@ -34,7 +34,12 @@ const CHECKLIST = [
 ];
 
 const CPU_SECONDS = 300;
-const SPEED_STEPS: Record<SpeedProgress["step"], string> = { read: "lecture", access: "temps d'accès", write: "écriture" };
+const SPEED_STEPS: Record<SpeedProgress["step"], string> = {
+  read: "lecture",
+  access: "temps d'accès",
+  write: "écriture",
+  readback: "relecture",
+};
 const GPU_SECONDS = 120;
 
 type Step = "idle" | "inventory" | "disks" | "speed" | "ram" | "cpu" | "gpu" | "done";
@@ -324,8 +329,9 @@ function StepProgress({
     pct = ram.bytes_total > 0 ? (ram.bytes_done / ram.bytes_total) * 100 : 0;
     detail = `Passe ${ram.pass} sur ${ram.total_passes} · ${ram.errors} erreur(s)`;
   } else if (step === "speed" && speedDisk) {
-    const part = speed ? (speed.step === "read" ? 0 : speed.step === "access" ? 1 : 2) + speed.pct / 100 : 0;
-    pct = ((speedDisk.index + part / 3) / speedDisk.count) * 100;
+    const order = { read: 0, access: 1, write: 2, readback: 3 } as const;
+    const part = speed ? order[speed.step] + speed.pct / 100 : 0;
+    pct = ((speedDisk.index + part / 4) / speedDisk.count) * 100;
     detail = `Disque ${speedDisk.index + 1} sur ${speedDisk.count}${speed ? ` · ${SPEED_STEPS[speed.step]}` : ""}`;
   } else if (step === "gpu") {
     const last = gpu.samples[gpu.samples.length - 1];

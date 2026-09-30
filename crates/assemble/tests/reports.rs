@@ -7,7 +7,7 @@ use pccheck_assemble::{
     build_disk_report, build_machine_report, build_phone_report, InteractiveEntry, PhoneAnalysis,
     Results,
 };
-use pccheck_core::speed::{AccessTime, ReadSpeed, SpeedResult, WriteSpeed, ZoneSpeed};
+use pccheck_core::speed::{AccessTime, ReadSpeed, SpeedResult, Throughput, WriteSpeed, ZoneSpeed};
 use pccheck_core::{parse_disk, DiskEntry, ScanDevice};
 use pccheck_inventory::{
     analyse_gpu_test, GpuSample, GpuTestInput, MachineInventory, RamTestResult, StressResult,
@@ -250,7 +250,18 @@ fn speed_and_age_are_rated_on_the_disk_scale() {
             write: Some(WriteSpeed {
                 volume: "E:\\".into(),
                 mbps: 180.0,
+                min_mbps: 150.0,
+                max_mbps: 480.0,
                 bytes: 1 << 30,
+                samples: Vec::new(),
+                readback: Some(Throughput {
+                    mbps: 505.0,
+                    min_mbps: 490.0,
+                    max_mbps: 520.0,
+                    samples: Vec::new(),
+                }),
+                readback_errors: 1,
+                readback_error: None,
             }),
             write_skipped: None,
             cancelled: false,
@@ -266,4 +277,7 @@ fn speed_and_age_are_rated_on_the_disk_scale() {
     // 180 Mo/s en écriture pour un SSD SATA : faible.
     assert_eq!(item("Écriture").level, Level::Warn);
     assert!(item("Âge estimé").value.contains("étiquette : 2019"));
+    assert_eq!(item("Relecture (données réelles)").level, Level::Ok);
+    // Un bloc relu différent de ce qui a été écrit : critique.
+    assert_eq!(item("Données relues différentes").level, Level::Bad);
 }

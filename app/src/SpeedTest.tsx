@@ -1,39 +1,76 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { formatBytes } from "./format";
 import { Hint } from "./Hint";
-import { ageHint, speedHint } from "./hints";
+import { speedHint } from "./hints";
 import { cancelJob, isOk, useJob } from "./jobs";
+import { useKept } from "./kept";
 import { errorMessage } from "./load";
-import type { DiskAge, SpeedProgress, SpeedResult } from "./moreTypes";
+import type { RateSample, SpeedProgress, SpeedResult } from "./moreTypes";
 import { ScaleBar } from "./ScaleBar";
+import { ThroughputChart } from "./ThroughputChart";
 import type { DiskInfo } from "./types";
 
 const nf0 = new Intl.NumberFormat("fr-CA", { maximumFractionDigits: 0 });
 const nf1 = new Intl.NumberFormat("fr-CA", { maximumFractionDigits: 1 });
 
+/** Tailles d'écriture proposées, en Go (même liste que `WRITE_SIZES_GIB` côté moteur). */
+const SIZES = [1, 5, 10] as const;
+const GIB = 1024 ** 3;
+
 const STEPS: Record<SpeedProgress["step"], string> = {
   read: "Lecture au début, au milieu et à la fin",
   access: "Temps d'accès",
-  write: "Écriture de 1 Go dans l'espace libre",
+  write: "Écriture dans l'espace libre",
+  readback: "Relecture et vérification du fichier",
 };
 
-/** Panneau « Vitesse » de la fiche d'un disque : test rapide et résultats sur leur échelle. */
+/** Débit typique du type de disque, pour estimer la durée du test. */
+function typicalMbps(disk: DiskInfo): number {
+  if (disk.protocol === "nvme") return 1500;
+  if (disk.media.kind === "ssd") return 450;
+  return 100;
+}
+
+/** Courbe en direct : relevés reçus pendant le test, gardés si l'écran est quitté. */
+interface Live {
+  totalBytes: number;
+  write: RateSample[];
+  readback: RateSample[];
+}
+
+/** Panneau « Vitesse » de la fiche d'un disque : test, courbe en direct, résultats sur leur échelle. */
 export function SpeedTest({ disk }: { disk: DiskInfo }) {
   const id = `speed:${disk.device.name}`;
   const [job, setJob] = useJob<SpeedProgress, SpeedResult>(id);
   const [startError, setStartError] = useState<string | null>(null);
+  const [size, setSize] = useKept<number>("speed.size", () => 1);
+  const [live, setLive] = useKept<Live>(`speed.live.${disk.device.name}`, () => ({ totalBytes: GIB, write: [], readback: [] }));
+
+  // Chaque relevé reçu (une demi-seconde) prolonge la courbe de son étape.
+  const p = job.progress;
+  useEffect(() => {
+    const sample = p?.sample;
+    if (!p || !sample || !job.running || (p.step !== "write" && p.step !== "readback")) return;
+    const key = p.step === "write" ? "write" : "readback";
+    setLive((l) => {
+      const last = l[key][l[key].length - 1];
+      if (last && sample.at_bytes <= last.at_bytes) return l;
+      return { ...l, [key]: [...l[key], sample] };
+    });
+  }, [p, job.running, setLive]);
 
   const start = () => {
     setStartError(null);
+    setLive({ totalBytes: size * GIB, write: [], readback: [] });
     setJob({ running: true, progress: null, result: null });
-    invoke("start_speed_test", { device: disk.device.name }).catch((e: unknown) => {
+    invoke("start_speed_test", { device: disk.device.name, writeGib: size }).catch((e: unknown) => {
       setJob({ running: false, progress: null, result: null });
       setStartError(errorMessage(e));
     });
   };
 
-  const p = job.progress;
+  // Lecture et accès (~30 s), puis écriture et relecture du fichier au débit typique.
+  const minutes = Math.max(1, Math.round((30 + (2 * size * GIB) / 1e6 / typicalMbps(disk)) / 60));
   return (
     <section className="panel" aria-label="Vitesse">
       <div className="panel-head">
@@ -41,10 +78,19 @@ export function SpeedTest({ disk }: { disk: DiskInfo }) {
           <Hint hint={speedHint}>Vitesse</Hint>
         </h3>
         {!job.running && disk.capacity_bytes !== null && (
-          <button type="button" className="btn" onClick={start}>
-            {job.result ? "Relancer le test" : "Tester la vitesse"}
-            <span className="btn-sub">~1 min</span>
-          </button>
+          <div className="header-actions">
+            <select className="select" value={size} onChange={(e) => setSize(Number(e.target.value))} aria-label="Quantité à écrire">
+              {SIZES.map((g) => (
+                <option key={g} value={g}>
+                  Écrire {g} Go
+                </option>
+              ))}
+            </select>
+            <button type="button" className="btn" onClick={start}>
+              {job.result ? "Relancer le test" : "Tester la vitesse"}
+              <span className="btn-sub">~{minutes} min</span>
+            </button>
+          </div>
         )}
       </div>
       {startError && <p className="text-bad small">{startError}</p>}
@@ -52,11 +98,15 @@ export function SpeedTest({ disk }: { disk: DiskInfo }) {
         <div className="test-progress" role="status">
           <div className="test-progress-head">
             <span>{p ? STEPS[p.step] : "Démarrage…"}</span>
-            <span className="mono">{p ? `${p.pct} %` : ""}</span>
+            <span className="mono">
+              {p ? `${p.pct} %` : ""}
+              {p?.sample ? ` · ${nf0.format(p.sample.mbps)} Mo/s` : ""}
+            </span>
           </div>
           <div className="bar" aria-hidden="true">
             <div className="bar-fill" style={{ width: `${Math.max(p?.pct ?? 0, 2)}%` }} />
           </div>
+          <ThroughputChart totalBytes={live.totalBytes} write={live.write} readback={live.readback} band={null} />
           <button type="button" className="btn" onClick={() => void cancelJob(id)}>
             Arrêter (le fichier de test est supprimé)
           </button>
@@ -65,8 +115,9 @@ export function SpeedTest({ disk }: { disk: DiskInfo }) {
       {!job.running && isOk(job.result) && <SpeedSummary r={job.result.ok} />}
       {!job.running && !job.result && (
         <p className="muted small">
-          Environ une minute. Écrit un fichier temporaire de 1 Go dans l'espace libre, supprimé à la fin : ne pas lancer sur un disque dont
-          tu veux récupérer des fichiers supprimés.
+          Écrit un fichier temporaire dans l'espace libre, le relit en vérifiant chaque bloc, puis le supprime. Ne pas lancer sur un
+          disque dont tu veux récupérer des fichiers supprimés. Avec 5 ou 10 Go, la courbe montre si un SSD ralentit une fois son
+          cache rapide rempli.
         </p>
       )}
     </section>
@@ -78,15 +129,22 @@ export function SpeedSummary({ r }: { r: SpeedResult }) {
   const zones = r.read?.zones ?? [];
   const start = zones[0];
   const where = (pct: number) => (pct === 0 ? "début" : pct === 50 ? "milieu" : "fin");
+  const w = r.write;
   return (
     <div className="speed-summary">
       {scale && <p className="muted small">Repères : {scale.class}.</p>}
       {r.read_error && <p className="text-bad small">{r.read_error}</p>}
       {start &&
         (scale ? (
-          <ScaleBar label="Lecture (début du disque)" value={start.mbps} unit="Mo/s" band={scale.read} linkCap={scale.link_cap_mbps} />
+          <ScaleBar
+            label="Lecture directe (début du disque)"
+            value={start.mbps}
+            unit="Mo/s"
+            band={scale.read}
+            linkCap={scale.link_cap_mbps}
+          />
         ) : (
-          <p>Lecture : {nf0.format(start.mbps)} Mo/s</p>
+          <p>Lecture directe : {nf0.format(start.mbps)} Mo/s</p>
         ))}
       {zones.length > 1 && (
         <p className="muted small">
@@ -100,18 +158,32 @@ export function SpeedSummary({ r }: { r: SpeedResult }) {
         ) : (
           <p className="muted small">Temps d'accès : {nf1.format(r.read.access.avg_ms)} ms (quasi instantané sur un SSD).</p>
         ))}
-      {r.write &&
+      {w &&
         (scale ? (
-          <ScaleBar label="Écriture" value={r.write.mbps} unit="Mo/s" band={scale.write} linkCap={scale.link_cap_mbps} />
+          <ScaleBar label="Écriture" value={w.mbps} unit="Mo/s" band={scale.write} linkCap={scale.link_cap_mbps} />
         ) : (
-          <p>Écriture : {nf0.format(r.write.mbps)} Mo/s</p>
+          <p>Écriture : {nf0.format(w.mbps)} Mo/s</p>
         ))}
-      {r.write && (
+      {w?.readback &&
+        (scale ? (
+          <ScaleBar label="Relecture (données réelles)" value={w.readback.mbps} unit="Mo/s" band={scale.read} linkCap={scale.link_cap_mbps} />
+        ) : (
+          <p>Relecture : {nf0.format(w.readback.mbps)} Mo/s</p>
+        ))}
+      {w && <ThroughputChart totalBytes={w.bytes} write={w.samples} readback={w.readback?.samples ?? []} band={scale?.write ?? null} />}
+      {w && (
         <p className="muted small">
-          {formatBytes(r.write.bytes)} écrits sur {r.write.volume}, puis supprimés.
+          {nf1.format(w.bytes / GIB)} Go écrits sur {w.volume}, relus puis supprimés. Écriture de {nf0.format(w.min_mbps)} à{" "}
+          {nf0.format(w.max_mbps)} Mo/s.
         </p>
       )}
-      {!r.write && r.write_skipped && <p className="muted small">Écriture non mesurée : {r.write_skipped}.</p>}
+      {w && w.readback_errors > 0 && (
+        <p className="text-bad small">
+          {w.readback_errors} bloc(s) relu(s) différent(s) de ce qui a été écrit : défaut grave (mémoire, contrôleur ou surface).
+        </p>
+      )}
+      {w?.readback_error && <p className="text-bad small">Relecture impossible : {w.readback_error}</p>}
+      {!w && r.write_skipped && <p className="muted small">Écriture non mesurée : {r.write_skipped}.</p>}
       {scale?.link_cap_mbps && scale.link_cap_mbps < scale.read.good && (
         <p className="muted small">
           Port SATA ancien : environ {nf0.format(scale.link_cap_mbps)} Mo/s au maximum, quel que soit le disque.
@@ -119,102 +191,5 @@ export function SpeedSummary({ r }: { r: SpeedResult }) {
       )}
       {r.cancelled && <p className="muted small">Test arrêté avant la fin.</p>}
     </div>
-  );
-}
-
-/** Libellés de la jauge des heures (mêmes seuils que `age::hours_rating`). */
-const HOURS_WORDS = { good: "Peu utilisé", acceptable: "Usé", weak: "Fin de vie probable", limited: "" };
-
-/** Panneau « Âge et usure » : heures sur leur jauge (disque dur), âge estimé, année de l'étiquette. */
-export function DiskAgePanel({ disk }: { disk: DiskInfo }) {
-  const [age, setAge] = useState<DiskAge | null>(null);
-  const [year, setYear] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    invoke<DiskAge>("disk_age", { device: disk.device.name })
-      .then((a) => {
-        setAge(a);
-        setYear(a.label_year ? String(a.label_year) : "");
-      })
-      .catch(() => setAge(null));
-  }, [disk.device.name]);
-
-  const save = () => {
-    setError(null);
-    const y = year.trim() === "" ? null : Number(year);
-    if (y !== null && !Number.isInteger(y)) {
-      setError("Année invalide.");
-      return;
-    }
-    invoke<DiskAge>("set_disk_year", { device: disk.device.name, year: y })
-      .then(setAge)
-      .catch((e: unknown) => setError(errorMessage(e)));
-  };
-
-  if (!age) return null;
-  const hours = age.power_on_hours;
-  return (
-    <section className="panel" aria-label="Âge et usure">
-      <div className="panel-head">
-        <h3>
-          <Hint hint={ageHint}>Âge et usure</Hint>
-        </h3>
-      </div>
-      {hours !== null && age.hours_rating && (
-        <ScaleBar
-          label={`Heures d'utilisation (≈ ${nf0.format(hours / 24)} jours allumé)`}
-          value={hours}
-          unit="h"
-          band={{ good: 20000, acceptable: 40000, higher_is_better: false }}
-          words={HOURS_WORDS}
-          legend="Disque dur : moins de 20 000 h peu utilisé · 20 000 à 40 000 h usé · plus de 40 000 h fin de vie probable"
-        />
-      )}
-      {hours !== null && !age.hours_rating && (
-        <p className="small muted">
-          {nf0.format(hours)} h d'utilisation. Sur un SSD, l'usure se lit dans la vie restante plutôt que dans les heures.
-        </p>
-      )}
-      <dl className="rows">
-        <div className="row">
-          <dt>Âge estimé</dt>
-          <dd>
-            {age.age_years === null
-              ? "Inconnu"
-              : `${age.age_is_maximum ? "au plus " : ""}≈ ${nf0.format(age.age_years)} ans` +
-                (age.label_year ? ` (étiquette : ${age.label_year})` : age.model_year ? ` (modèle sorti vers ${age.model_year})` : "")}
-          </dd>
-        </div>
-        {age.hours_per_day !== null && (
-          <div className="row">
-            <dt>Usage moyen</dt>
-            <dd>
-              {age.age_is_maximum ? "au moins " : ""}
-              {nf1.format(age.hours_per_day)} h par jour
-            </dd>
-          </div>
-        )}
-      </dl>
-      <div className="tsk-bar">
-        <label className="field inline">
-          <span className="muted small">Année sur l'étiquette du disque</span>
-          <input
-            type="number"
-            inputMode="numeric"
-            min={1980}
-            max={2100}
-            placeholder="ex. 2012"
-            value={year}
-            onChange={(e) => setYear(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && save()}
-          />
-        </label>
-        <button type="button" className="btn" onClick={save}>
-          Enregistrer
-        </button>
-      </div>
-      {error && <p className="text-bad small">{error}</p>}
-    </section>
   );
 }
