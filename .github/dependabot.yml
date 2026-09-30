@@ -1,0 +1,22 @@
+# Mises à jour de dépendances proposées par pull request, une fois par semaine, regroupées pour
+# éviter une PR par paquet. Chaque PR passe la CI avant d'être fusionnée.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      rust:
+        patterns: ["*"]
+  - package-ecosystem: npm
+    directory: /app
+    schedule:
+      interval: weekly
+    groups:
+      interface:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

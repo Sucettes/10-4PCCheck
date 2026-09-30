@@ -13,6 +13,8 @@ Outil de diagnostic portable, sur clé USB, pour vérifier un appareil d'occasio
 
 Chaque donnée affichée a une info-bulle qui explique d'où elle vient et comment la lire.
 
+Documentation complète : [wiki du projet](https://github.com/Sucettes/10-4PCCheck/wiki) (sources dans `docs/wiki/`).
+
 ## Télécharger
 
 Chaque mise à jour de `master` qui passe les tests et les deux builds publie une release (onglet *Releases*, nom `v<version>-build.<n>`) :
