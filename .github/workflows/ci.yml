@@ -14,6 +14,11 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
 
+# Écriture requise pour les releases de master (voir tools/ci/release.sh). Sur une pull request,
+# les étapes de release sont sautées.
+permissions:
+  contents: write
+
 jobs:
   # Lint et tests du moteur et de l'app (Linux).
   check:
@@ -42,6 +47,11 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
+      - name: Release (brouillon)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash tools/ci/release.sh create
 
   # AppImage Linux, construite sur Ubuntu 22.04 (glibc 2.35) pour la compatibilité.
   linux-appimage:
@@ -75,6 +85,13 @@ jobs:
           timeout 120 xvfb-run -a usb/linux/PCCheck.AppImage --self-test "$PWD/selftest-linux.json"
           cat selftest-linux.json
           jq -e '.ok == true and .appInfo.smartctl.status == "ready"' selftest-linux.json
+      - name: Joindre l'AppImage à la release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp usb/linux/PCCheck.AppImage PCCheck-linux.AppImage
+          bash tools/ci/release.sh upload PCCheck-linux.AppImage
       # Non bloquant : le quota de stockage d'artefacts du compte GitHub peut être atteint.
       - uses: actions/upload-artifact@v4
         continue-on-error: true
@@ -162,6 +179,23 @@ jobs:
           Write-Host "CAPTURE-DEBUT"
           for ($i = 0; $i -lt $b64.Length; $i += 4000) { Write-Host ("CAPTURE:" + $b64.Substring($i, [Math]::Min(4000, $b64.Length - $i))) }
           Write-Host "CAPTURE-FIN"
+      - name: Outils de la clé (adb, PhotoRec, TestDisk, The Sleuth Kit)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        shell: pwsh
+        run: ./tools/fetch-tools-windows.ps1
+      - name: Paquet de la clé (Windows)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        shell: pwsh
+        run: |
+          ./tools/assemble-usb.ps1
+          Compress-Archive -Path dist-usb\* -DestinationPath PCCheck-windows.zip
+          Get-Item PCCheck-windows.zip | Select-Object Name, Length
+      - name: Joindre le paquet Windows à la release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash tools/ci/release.sh upload PCCheck-windows.zip
       - uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
@@ -172,3 +206,15 @@ jobs:
             selftest-windows.json
             screenshot-windows.png
             manifest.xml
+
+  # Publication : seulement si les tests et les deux builds ont réussi.
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: [linux-appimage, windows]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publier la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash tools/ci/release.sh publish

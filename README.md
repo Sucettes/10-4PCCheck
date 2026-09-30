@@ -13,6 +13,13 @@ Outil de diagnostic portable, sur clé USB, pour vérifier un appareil d'occasio
 
 Chaque donnée affichée a une info-bulle qui explique d'où elle vient et comment la lire.
 
+## Télécharger
+
+Chaque mise à jour de `master` qui passe les tests et les deux builds publie une release (onglet *Releases*, nom `v<version>-build.<n>`) :
+
+- `PCCheck-windows.zip` : le dossier complet de la clé, à décompresser à sa racine. PCCheck.exe, smartctl, adb, PhotoRec/TestDisk et The Sleuth Kit (téléchargés depuis leurs sources officielles, sommes SHA-256 dans `windows/tools/VERSIONS.txt`).
+- `PCCheck-linux.AppImage` : à placer dans `linux/` sur la clé.
+
 ## Utilisation
 
 Voir `docs/LISEZMOI-CLE.txt` (copié à la racine de la clé). En bref : lancer `windows\PCCheck.exe`, accepter l'invite administrateur (nécessaire pour lire les disques), choisir un mode. Les rapports sont écrits dans `rapports\` sur la clé.
