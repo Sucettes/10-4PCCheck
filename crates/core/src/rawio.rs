@@ -116,6 +116,31 @@ pub fn create_uncached(path: &Path) -> io::Result<File> {
     }
 }
 
+/// Crée un fichier NEUF pour l'écriture sans cache : échoue si le chemin existe déjà, un
+/// fichier présent n'est donc jamais remplacé ni tronqué.
+pub fn create_new_uncached(path: &Path) -> io::Result<File> {
+    let mut opts = OpenOptions::new();
+    opts.write(true).create_new(true);
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        opts.custom_flags(sys::FILE_FLAG_NO_BUFFERING | sys::FILE_FLAG_WRITE_THROUGH);
+    }
+    #[cfg(target_os = "linux")]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.custom_flags(libc::O_DIRECT);
+    }
+    match opts.open(path) {
+        // O_DIRECT refusé par le système de fichiers : écriture normale, `sync_all` fera foi.
+        #[cfg(target_os = "linux")]
+        Err(e) if e.raw_os_error() == Some(libc::EINVAL) => {
+            OpenOptions::new().write(true).create_new(true).open(path)
+        }
+        other => other,
+    }
+}
+
 /// Ouvre un fichier de test pour la relecture sans cache.
 pub fn open_uncached(path: &Path) -> io::Result<File> {
     let mut opts = OpenOptions::new();

@@ -3,6 +3,7 @@
 //! Aucune dépendance à l'interface : l'application Tauri et les tests appellent
 //! les mêmes fonctions, et tout ce qui sort d'ici est sérialisable en JSON.
 
+pub mod age;
 pub mod attributes;
 pub mod capacity;
 pub mod checks;
@@ -11,6 +12,7 @@ pub mod process;
 pub mod rawio;
 pub mod selftest;
 pub mod smartctl;
+pub mod speed;
 pub mod surface;
 
 pub use attributes::AttributeStatus;
