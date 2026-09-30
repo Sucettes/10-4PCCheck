@@ -14,6 +14,7 @@ pub mod selftest;
 pub mod smartctl;
 pub mod speed;
 pub mod surface;
+pub mod usb;
 
 pub use attributes::AttributeStatus;
 pub use checks::{Check, CheckLevel};

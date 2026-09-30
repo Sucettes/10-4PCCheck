@@ -24,6 +24,7 @@ use crate::capacity::free_space;
 use crate::disk::{DiskInfo, MediaKind, Protocol};
 use crate::rawio::{self, AlignedBuf, ALIGN};
 use crate::surface::BlockReader;
+use crate::usb::UsbLink;
 
 /// Données lues à chaque position du disque.
 /// Données lues à chaque position : sur un SSD, 256 Mio se lisent en moins d'un dixième de
@@ -144,6 +145,8 @@ pub struct SpeedResult {
     pub cancelled: bool,
     /// Repères du type de disque, `None` si le type est inconnu.
     pub scale: Option<SpeedScale>,
+    /// Liaison USB, si le disque est branché par un adaptateur ou un boîtier USB.
+    pub usb: Option<UsbLink>,
 }
 
 /// Lecture aux trois positions puis temps d'accès. `open` ouvre une nouvelle lecture du disque :
@@ -581,8 +584,11 @@ pub struct SpeedScale {
     pub write: Band,
     /// Disques durs seulement : sur un SSD, l'accès est toujours quasi instantané.
     pub access: Option<Band>,
-    /// Débit maximal du lien SATA quand il est ancien (SATA II : environ 280 Mo/s).
+    /// Débit maximal imposé par la liaison : port SATA ancien (SATA II : environ 280 Mo/s) ou
+    /// liaison USB (USB 2.0 : environ 40 Mo/s).
     pub link_cap_mbps: Option<f64>,
+    /// Explication de la liaison, à afficher avec les mesures.
+    pub link_note: Option<String>,
 }
 
 impl SpeedScale {
@@ -601,6 +607,11 @@ impl SpeedScale {
 /// Repères selon le type de disque (valeurs validées avec le propriétaire le 2026-09-30).
 /// Type inconnu : `None`, les mesures sont alors affichées sans jugement.
 pub fn speed_scale(info: &DiskInfo) -> Option<SpeedScale> {
+    speed_scale_with_link(info, None)
+}
+
+/// Comme `speed_scale`, en tenant compte d'une liaison USB qui borne le débit.
+pub fn speed_scale_with_link(info: &DiskInfo, usb: Option<&UsbLink>) -> Option<SpeedScale> {
     let (class, read, access) = match (&info.media, &info.protocol) {
         (_, Protocol::Nvme) => ("SSD NVMe".to_string(), Band::up(1500.0, 800.0), None),
         (MediaKind::Ssd, _) => ("SSD SATA".to_string(), Band::up(450.0, 300.0), None),
@@ -617,17 +628,34 @@ pub fn speed_scale(info: &DiskInfo) -> Option<SpeedScale> {
         ),
         (MediaKind::Unknown, _) => return None,
     };
-    let link_cap_mbps = match (&info.protocol, info.link_speed.as_deref()) {
+    let sata_cap = match (&info.protocol, info.link_speed.as_deref()) {
         (Protocol::Ata, Some(s)) if s.starts_with("1.5") => Some(140.0),
         (Protocol::Ata, Some(s)) if s.starts_with("3.0") => Some(280.0),
         _ => None,
     };
+    let mut notes = Vec::new();
+    // Port SATA ancien : mentionné seulement s'il bride vraiment ce type de disque.
+    if let Some(cap) = sata_cap.filter(|c| *c < read.good) {
+        notes.push(format!(
+            "Port SATA ancien : environ {} Mo/s au maximum, quel que soit le disque.",
+            cap as u64
+        ));
+    }
+    // Liaison USB : toujours décrite (on branche souvent un disque par un adaptateur pour le tester).
+    if let Some(link) = usb {
+        notes.push(link.describe());
+    }
+    let link_cap_mbps = [sata_cap, usb.map(UsbLink::cap_mbps)]
+        .into_iter()
+        .flatten()
+        .reduce(f64::min);
     Some(SpeedScale {
         class,
         read,
         write: read,
         access,
         link_cap_mbps,
+        link_note: (!notes.is_empty()).then(|| notes.join(" ")),
     })
 }
 
@@ -737,6 +765,7 @@ mod tests {
             write: Band::up(450.0, 300.0),
             access: None,
             link_cap_mbps: Some(280.0),
+            link_note: None,
         };
         assert_eq!(
             scale.rate_throughput(&scale.read, 265.0),

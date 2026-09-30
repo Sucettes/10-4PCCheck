@@ -6,7 +6,8 @@ use std::sync::Arc;
 use pccheck_core::age::{current_year, estimate_age, DiskAge};
 use pccheck_core::rawio;
 use pccheck_core::speed::{
-    read_test, speed_scale, write_test, SpeedResult, WriteSkip, WRITE_BYTES, WRITE_SIZES_GIB,
+    read_test, speed_scale_with_link, write_test, SpeedResult, WriteSkip, WRITE_BYTES,
+    WRITE_SIZES_GIB,
 };
 use pccheck_core::DiskInfo;
 use tauri::{AppHandle, State};
@@ -94,13 +95,15 @@ pub fn start_speed_test(
                 },
             }
         };
+        let usb = pccheck_core::usb::usb_link(&info.device.name);
         let result = SpeedResult {
             read,
             read_error,
             write,
             write_skipped,
             cancelled: ctx.cancel.load(std::sync::atomic::Ordering::Relaxed),
-            scale: speed_scale(&info),
+            scale: speed_scale_with_link(&info, usb.as_ref()),
+            usb,
         };
         cache
             .lock()
@@ -150,4 +153,12 @@ pub fn disk_age(device: String, cache: State<'_, Cache>) -> Result<DiskAge, Comm
 #[tauri::command]
 pub fn speed_result(device: String, cache: State<'_, Cache>) -> Option<SpeedResult> {
     cache.lock().speed.get(&device).cloned()
+}
+
+/// Liaison USB d'un disque (vitesse négociée, capacités, mode), `None` s'il n'est pas en USB.
+#[tauri::command]
+pub async fn disk_usb_link(
+    device: String,
+) -> Result<Option<pccheck_core::usb::UsbLink>, CommandError> {
+    crate::blocking(move || pccheck_core::usb::usb_link(&device)).await
 }

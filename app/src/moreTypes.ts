@@ -205,6 +205,16 @@ export interface SpeedScale {
   write: Band;
   access: Band | null;
   link_cap_mbps: number | null;
+  link_note: string | null;
+}
+
+export type UsbSpeed = "usb1" | "usb2" | "gen1" | "gen2" | "gen2x2";
+
+export interface UsbLink {
+  speed: UsbSpeed;
+  device_capable: UsbSpeed | null;
+  port_capable: UsbSpeed | null;
+  uas: boolean | null;
 }
 
 export interface RateSample {
@@ -245,6 +255,7 @@ export interface SpeedResult {
   write_skipped: string | null;
   cancelled: boolean;
   scale: SpeedScale | null;
+  usb: UsbLink | null;
 }
 
 export interface DiskAge {

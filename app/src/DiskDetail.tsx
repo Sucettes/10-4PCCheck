@@ -1,4 +1,5 @@
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { Hint } from "./Hint";
 import {
   attributeColumnHints,
@@ -14,6 +15,7 @@ import {
   temperatureHint,
   trimHint,
   type HintText,
+  usbHint,
 } from "./hints";
 import { formatBytes, formatHex, formatNumber, mediaLabel } from "./format";
 import { SelfTests } from "./SelfTests";
@@ -24,6 +26,7 @@ import { SpeedTest } from "./SpeedTest";
 import { ReportButton } from "./ReportButton";
 import { attributeLevel, lifeLevel, nvmeStatus, smartVerdict } from "./status";
 import type { AtaAttribute, AttributeStatus, Check, DiskInfo, NvmeHealth } from "./types";
+import type { UsbLink, UsbSpeed } from "./moreTypes";
 
 const nf0 = new Intl.NumberFormat("fr-CA", { maximumFractionDigits: 0 });
 
@@ -172,7 +175,34 @@ function Checks({ checks }: { checks: Check[] }) {
   );
 }
 
+const USB_LABELS: Record<UsbSpeed, string> = {
+  usb1: "USB 1.1 (12 Mb/s)",
+  usb2: "USB 2.0 (480 Mb/s)",
+  gen1: "USB 3.2 Gen 1 (5 Gb/s)",
+  gen2: "USB 3.2 Gen 2 (10 Gb/s)",
+  gen2x2: "USB 3.2 Gen 2x2 (20 Gb/s)",
+};
+const USB_ORDER: UsbSpeed[] = ["usb1", "usb2", "gen1", "gen2", "gen2x2"];
+
+/** Liaison USB en une ligne : vitesse négociée, mode, et ce qui la limite s'il y a mieux possible. */
+function usbText(l: UsbLink): string {
+  const parts = [USB_LABELS[l.speed]];
+  if (l.uas !== null) parts.push(l.uas ? "mode UAS" : "ancien mode (pas UAS)");
+  const rank = (s: UsbSpeed | null) => (s === null ? -1 : USB_ORDER.indexOf(s));
+  const now = rank(l.speed);
+  if (rank(l.device_capable) > now && rank(l.port_capable) > now) parts.push("limité par le câble");
+  else if (rank(l.device_capable) > now) parts.push(`port plus lent que l'adaptateur (${USB_LABELS[l.device_capable!]})`);
+  else if (rank(l.port_capable) > now) parts.push(`adaptateur plus lent que le port (${USB_LABELS[l.port_capable!]})`);
+  return parts.join(" · ");
+}
+
 function TechSheet({ disk }: { disk: DiskInfo }) {
+  const [usb, setUsb] = useState<UsbLink | null>(null);
+  useEffect(() => {
+    invoke<UsbLink | null>("disk_usb_link", { device: disk.device.name })
+      .then(setUsb)
+      .catch(() => setUsb(null));
+  }, [disk.device.name]);
   const iface =
     disk.protocol === "nvme"
       ? "PCIe NVMe"
@@ -190,6 +220,7 @@ function TechSheet({ disk }: { disk: DiskInfo }) {
       ),
     },
     { label: "Interface", hint: interfaceHint(disk), value: iface ?? "Inconnue" },
+    { label: "Liaison USB", hint: usbHint, value: usb ? usbText(usb) : null },
     { label: "Norme", hint: standardHint, value: disk.standard ?? "Inconnue" },
     { label: "Format", value: disk.form_factor },
     {

@@ -413,13 +413,10 @@ fn speed_items(sp: &SpeedResult) -> Vec<Item> {
                     }
                     None => (mbps_text(first.mbps), Level::Info, format!("{zones}.")),
                 };
-                // Seulement si le port bride vraiment ce type de disque (jamais un disque dur).
-                if let Some(cap) = scale.and_then(|s| s.link_cap_mbps.filter(|c| *c < s.read.good))
-                {
-                    detail.push_str(&format!(
-                        " Port SATA ancien : environ {} au maximum, quel que soit le disque.",
-                        mbps_text(cap)
-                    ));
+                // Liaison qui borne le débit : port SATA ancien ou USB (voir `speed_scale`).
+                if let Some(note) = scale.and_then(|s| s.link_note.as_deref()) {
+                    detail.push(' ');
+                    detail.push_str(note);
                 }
                 let label = if has_readback {
                     "Lecture directe"
@@ -525,6 +522,12 @@ fn speed_items(sp: &SpeedResult) -> Vec<Item> {
         (None, Some(why)) => items
             .push(Item::new("Écriture", "Non mesurée", Level::Neutral).with_detail(why.clone())),
         (None, None) => {}
+    }
+    if let Some(link) = &sp.usb {
+        // Information sur le branchement, pas un défaut du disque : niveau Info.
+        items.push(
+            Item::new("Liaison USB", link.speed.label(), Level::Info).with_detail(link.describe()),
+        );
     }
     if sp.cancelled {
         items.push(Item::new(

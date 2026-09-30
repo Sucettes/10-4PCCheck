@@ -195,11 +195,7 @@ export function SpeedSummary({ r }: { r: SpeedResult }) {
       )}
       {w?.readback_error && <p className="text-bad small">Relecture impossible : {w.readback_error}</p>}
       {!w && r.write_skipped && <p className="muted small">Écriture non mesurée : {r.write_skipped}.</p>}
-      {scale?.link_cap_mbps && scale.link_cap_mbps < scale.read.good && (
-        <p className="muted small">
-          Port SATA ancien : environ {nf0.format(scale.link_cap_mbps)} Mo/s au maximum, quel que soit le disque.
-        </p>
-      )}
+      {scale?.link_note && <p className="muted small">{scale.link_note}</p>}
       {r.cancelled && <p className="muted small">Test arrêté avant la fin.</p>}
     </div>
   );

@@ -302,3 +302,13 @@ export const ageHint: HintText = {
     "Heures par jour : 24 h sur 24 pendant 10 ans n'use pas comme 2 h par jour.",
   ],
 };
+
+export const usbHint: HintText = {
+  title: "Liaison USB",
+  body: [
+    "Vitesse négociée entre le disque et l'ordinateur : la plus basse du port, du câble et de l'adaptateur (boîtier ou câble USB-SATA).",
+    "Débit réel maximal : USB 2.0 environ 40 Mo/s, USB 3.2 Gen 1 (5 Gb/s) environ 420 Mo/s, Gen 2 (10 Gb/s) environ 1 000 Mo/s. Le test de vitesse n'en tient pas rigueur au disque.",
+    "UAS : mode de transfert moderne. L'ancien mode (stockage de masse) est plus lent, surtout sur les petits fichiers.",
+    "Si l'adaptateur sait aller plus vite que la liaison actuelle, branche-le sur un port USB 3 (souvent bleu ou marqué SS) ou change de câble.",
+  ],
+};
