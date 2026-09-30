@@ -9,6 +9,7 @@ import { PhonePage } from "./Phone";
 import { BrandMark, Icon, type IconName } from "./icons";
 import { errorMessage, type Load } from "./load";
 import type { AppInfo, DiskEntry } from "./types";
+import { demoMode } from "./demo/mode";
 
 export type Page = "accueil" | "analyse" | "disques" | "telephone" | "recuperation" | "rapports";
 
@@ -77,6 +78,12 @@ export default function App() {
     <div className="layout">
       <Sidebar info={info} page={page} go={go} />
       <main className="main">
+        {demoMode && (
+          <div className="banner banner-info" role="status">
+            <strong>Mode démonstration.</strong> Données fictives : les mesures et les actions demandent l'application PCCheck sur
+            un vrai PC.
+          </div>
+        )}
         {info.state === "ok" && !info.value.elevated && (
           <div className="banner banner-warn" role="status">
             <strong>Droits limités.</strong> Relance l'outil en administrateur pour lire les données SMART et les

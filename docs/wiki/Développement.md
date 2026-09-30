@@ -34,6 +34,8 @@ Tests Linux, dont les tests réels avec PhotoRec, TestDisk et The Sleuth Kit des
 
 L'application a un mode d'autotest : `PCCheck.exe --self-test sortie.json` affiche l'interface, écrit ce qu'elle a rendu, puis quitte.
 
+**Mode démo** : `npm run dev` dans `app/`, puis http://localhost:5173 dans un navigateur. Sans le moteur Tauri, l'interface affiche un PC, des disques et un téléphone fictifs (données générées par le moteur : `crates/assemble/examples/demo_data.rs`). Pratique pour travailler sur l'interface sans droits administrateur ni matériel.
+
 ## Branches, CI et releases
 
 - Une branche par fonctionnalité, fusionnée dans `master` par pull request ; une fonctionnalité importante est découpée en **pull requests empilées** (moteur, puis application et rapport, puis interface), fusionnées du bas vers le haut. Détails dans `CLAUDE.md`.

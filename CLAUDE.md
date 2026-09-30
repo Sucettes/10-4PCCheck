@@ -54,6 +54,8 @@ Tests réels ignorés par défaut (`#[ignore]`) : voir l'en-tête de chaque fich
 
 Autotest de l'application : `PCCheck.exe --self-test sortie.json` (avec `__COMPAT_LAYER=RunAsInvoker` pour le lancer sans élévation).
 
+**Mode démo** : hors de Tauri (`npm run dev` dans `app/`, puis un navigateur), l'interface tourne sur des données **fictives** (`app/src/demo/`), avec un bandeau « Mode démonstration ». Les lectures répondent, les actions refusent. Sert aux captures du wiki et aux vidéos d'AgentFly. Quand un type échangé avec l'interface change (disque, rapport, vitesse...), régénère les données : `cargo run -q -p pccheck-assemble --example demo_data > app/src/demo/data.json`, et ajoute dans `app/src/demo/mock.ts` la réponse de toute nouvelle commande de lecture.
+
 ## Conventions
 
 **Rust**

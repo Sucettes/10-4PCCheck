@@ -86,6 +86,7 @@ h2 { margin: 0; font-family: var(--font-display); font-size: 15px; font-weight: 
 .btn:disabled { color: var(--text-2); cursor: default; }
 
 .banner { padding: 8px 12px; border-radius: 8px; border: 1px solid; line-height: 1.4; overflow-wrap: anywhere; }
+.banner-info { background: #eaf1ff; border-color: #b9ccf5; color: #1d3f8f; }
 .banner-warn { background: #fff8e6; border-color: var(--warn-border); color: #5c4a1e; }
 .banner-bad { background: var(--bad-bg); border-color: var(--bad-border); color: var(--bad-text); }
 
