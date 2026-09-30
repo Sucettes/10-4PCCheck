@@ -207,6 +207,28 @@ jobs:
             screenshot-windows.png
             manifest.xml
 
+  # Wiki GitHub publié depuis docs/wiki/ (source de vérité, versionnée avec le code).
+  wiki:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: check
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publier docs/wiki sur le wiki
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git clone -q "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki
+          # Le wiki reflète exactement docs/wiki : une page supprimée du dépôt disparaît aussi.
+          find wiki -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -r docs/wiki/. wiki/
+          cd wiki
+          git add -A
+          if git diff --cached --quiet; then echo "wiki déjà à jour"; exit 0; fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com"             commit -q -m "Documentation : ${GITHUB_SHA::7}"
+          git push -q
+          echo "wiki publié"
+
   # Publication : seulement si les tests et les deux builds ont réussi.
   release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'

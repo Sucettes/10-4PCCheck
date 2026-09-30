@@ -40,6 +40,7 @@ L'application a un mode d'autotest : `PCCheck.exe --self-test sortie.json` affic
 - Les issues étiquetées `agentflySucettes` sont traitées par AgentFly (`agentfly.yml`).
 - La CI (`.github/workflows/ci.yml`) vérifie le format, clippy et les tests, puis construit l'AppImage Linux et l'exécutable Windows (avec autotest).
 - Chaque mise à jour de `master` qui passe publie une release (`tools/ci/release.sh`).
+- Le wiki est publié depuis `docs/wiki/` à chaque mise à jour de `master` : modifie les pages dans le dépôt, jamais directement sur GitHub. Une pull request qui change un comportement met à jour sa documentation (règle détaillée dans `CLAUDE.md`).
 
 ## Données personnelles
 
