@@ -58,6 +58,8 @@ label "dépendances" "0366d6" "Mises à jour proposées par Dependabot"
 label "disques" "5319e7" "SMART, vitesse, scan de surface, capacité"
 label "récupération" "1d76db" "PhotoRec, The Sleuth Kit, TestDisk"
 label "téléphone" "0e8a16" "Analyse Android par adb"
+label "machine" "c2e0c6" "Inventaire, charge du processeur, mémoire, carte graphique, sécurité"
+label "ci" "ededed" "CI, releases, configuration du dépôt et des outils de développement"
 # AgentFly (issues → pull requests) : étiquette de l'instance (AGENTFLY_LABEL) et étiquette
 # posée pendant le traitement d'une issue.
 label "agentflySucettes" "7057ff" "À traiter par AgentFly"
