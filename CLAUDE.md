@@ -92,12 +92,15 @@ master ◄─ feat/vitesse-1-moteur ◄─ feat/vitesse-2-rapport ◄─ feat/vi
 
 - Découpe par couche ou par étape logique : moteur (crate + tests), puis application et rapport, puis interface. Une PR = un sujet, idéalement moins de 400 lignes modifiées.
 - Chaque PR cible la branche de la précédente (`gh pr create --base feat/vitesse-1-moteur`) et dit dans sa description où elle se place dans la pile (« 2/3, après #12 »).
-- Fusion du bas vers le haut. Les fusions sont en « squash » : après la fusion d'une PR, rebase la suivante sur `master` en retirant les commits déjà fusionnés, puis repousse :
+- Fusion du bas vers le haut, en « squash ». **Avant** de fusionner une PR, recible la suivante vers `master` : si GitHub la recible lui-même à la suppression de la branche fusionnée, il peut la fermer, et une PR fermée dont la branche a été repoussée ne se rouvre plus (il faut la recréer).
   ```
-  git rebase --onto master feat/vitesse-1-moteur feat/vitesse-2-rapport
-  git push --force-with-lease
+  gh pr edit <PR suivante> --base master
+  gh pr merge <PR du bas> --squash --delete-branch
+  git fetch origin
+  git rebase --onto origin/master feat/vitesse-1-moteur feat/vitesse-3-interface --update-refs
+  git push --force-with-lease origin feat/vitesse-2-rapport feat/vitesse-3-interface
   ```
-  GitHub recible automatiquement la PR suivante vers `master` quand la branche fusionnée est supprimée.
+  `--update-refs` déplace d'un coup toutes les branches intermédiaires de la pile ; `--onto` retire les commits déjà fusionnés (le squash a créé un autre commit, git ne les reconnaîtrait pas seul).
 - Une correction demandée sur une PR du bas se fait sur sa branche, puis se propage vers le haut par rebase.
 
 Messages de commit et titres de PR en français, descriptifs, sans préfixe conventionnel ni émoji : le quoi sur la première ligne, le pourquoi dans le corps.
