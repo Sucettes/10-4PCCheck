@@ -47,6 +47,10 @@ label "dépendances" "0366d6" "Mises à jour proposées par Dependabot"
 label "disques" "5319e7" "SMART, vitesse, scan de surface, capacité"
 label "récupération" "1d76db" "PhotoRec, The Sleuth Kit, TestDisk"
 label "téléphone" "0e8a16" "Analyse Android par adb"
+# AgentFly (issues → pull requests) : étiquette de l'instance (AGENTFLY_LABEL) et étiquette
+# posée pendant le traitement d'une issue.
+label "agentflySucettes" "7057ff" "À traiter par AgentFly"
+label "agentflySucettes:in-progress" "c5def5" "En cours de traitement par AgentFly"
 
 step "Protection de master"
 # Pas d'approbation obligatoire : GitHub interdit d'approuver sa propre PR. La CI fait foi.

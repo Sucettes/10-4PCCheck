@@ -1,0 +1,32 @@
+# Configuration d'AgentFly pour PCCheck (issues étiquetées « agentfly » → pull requests).
+# Le conteneur d'AgentFly (Ubuntu 24.04, Node 22, Python, compilateur C) n'a pas Rust : « setup »
+# l'installe dans le dossier de l'utilisateur, sans droits administrateur. L'application Tauri
+# elle-même (crate pccheck-app) exige des bibliothèques graphiques absentes du conteneur : elle
+# est exclue ici, et la CI du dépôt la vérifie sur chaque pull request (Windows et Linux).
+
+baseBranch: master
+
+setup: >-
+  export PATH="$HOME/.cargo/bin:$PATH" &&
+  (command -v cargo >/dev/null ||
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs |
+  sh -s -- -y --profile minimal --default-toolchain stable -c clippy,rustfmt) &&
+  npm ci --prefix app
+
+build: npm run build --prefix app
+
+test: >-
+  export PATH="$HOME/.cargo/bin:$PATH" &&
+  cargo test --workspace --exclude pccheck-app &&
+  (cd app && npx tsc --noEmit)
+
+lint: >-
+  export PATH="$HOME/.cargo/bin:$PATH" &&
+  cargo fmt --all -- --check &&
+  cargo clippy --workspace --exclude pccheck-app --all-targets -- -D warnings
+
+# Pas de vidéo pour l'instant : l'interface a besoin du moteur Tauri (disques, droits
+# administrateur) pour afficher autre chose que des erreurs. Un mode démo dans le navigateur
+# (réponses simulées) permettra de passer à « browser ».
+demo:
+  kind: none

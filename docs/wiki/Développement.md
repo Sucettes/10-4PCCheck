@@ -36,7 +36,8 @@ L'application a un mode d'autotest : `PCCheck.exe --self-test sortie.json` affic
 
 ## Branches, CI et releases
 
-- Une branche par fonctionnalité, fusionnée dans `master` par pull request.
+- Une branche par fonctionnalité, fusionnée dans `master` par pull request ; une fonctionnalité importante est découpée en **pull requests empilées** (moteur, puis application et rapport, puis interface), fusionnées du bas vers le haut. Détails dans `CLAUDE.md`.
+- Les issues étiquetées `agentflySucettes` sont traitées par AgentFly (`agentfly.yml`).
 - La CI (`.github/workflows/ci.yml`) vérifie le format, clippy et les tests, puis construit l'AppImage Linux et l'exécutable Windows (avec autotest).
 - Chaque mise à jour de `master` qui passe publie une release (`tools/ci/release.sh`).
 
