@@ -83,9 +83,14 @@ Un test complet exige de démarrer hors de l'OS (MemTest86+). Depuis l'OS, on ne
 ### Découpage
 ```
 crates/
-  core/        Moteur de collecte en Rust. Aucune dépendance à l'UI.
-               Produit un rapport JSON versionné (champ schema_version).
-  cli/         Binaire en ligne de commande sur le moteur (debug, tests, scripts).
+  core/        Disques : smartctl, attributs, cohérence, auto-tests, scan de surface,
+               capacité réelle, lanceur de processus partagé. Aucune dépendance à l'UI.
+  inventory/   Inventaire matériel (WMI / sysfs), batterie, sécurité Windows,
+               test de charge CPU, test RAM partiel.
+  android/     Téléphone Android par ADB : collecte, évaluation, vérifications manuelles.
+  recovery/    PhotoRec : configuration, destination sur un autre disque, progression.
+  report/      Rapport versionné (schema_version), seuils, verdict, HTML, PDF (Typst).
+  assemble/    Mesures → rapport (disque, téléphone, machine). Fonctions pures testées.
 app/
   src-tauri/   Coquille Tauri 2. Expose les commandes du moteur à l'UI.
   src/         Interface React + TypeScript.
@@ -236,7 +241,7 @@ Objectif : lever les risques de la stack avant d'écrire les fonctionnalités.
 - [ ] Runtime WebView2 « version fixe » dans `webview2/` : le code le prend en charge, non testé (WebView2 est déjà présent sur les runners).
 - [x] Manifeste `requireAdministrator` présent dans l'exe (vérifié en CI). Invite UAC réelle : test final.
 - [x] AppImage Linux : autotest et capture réussis sur Ubuntu 22.04, Fedora 44 et Linux Mint 22 (conteneurs, voir « Résultats »).
-- [ ] Élévation Linux via `pkexec` : non faite. L'app détecte les droits et affiche « Droits limités ». Décision de conception à prendre en phase 1 (voir « Suites »).
+- [ ] Élévation Linux via `pkexec` : non faite. L'app détecte les droits et affiche « Droits limités » ; le LISEZMOI de la clé dit de lancer l'AppImage avec `sudo`. Voir « Limites connues ».
 - [x] Appel de `smartctl -j` embarqué depuis Rust et affichage dans l'interface.
 - [x] Choix de la génération PDF : Typst embarqué (section 4).
 
@@ -288,41 +293,51 @@ Claude vérifie tout ce qui peut l'être sans matériel réel. Le propriétaire 
 - [x] Score de santé par fabricant (SATA : 177, 202, 231, 233, SSD seulement) et `percentage_used` (NVMe).
 - [x] Vérifications de cohérence (module `checks` du moteur) : compteurs d'erreurs, écritures vs heures, heures vs démarrages (sessions très courtes ou très longues), usure vs écritures complètes, coupures brutales NVMe. Seuils en constantes, à ajuster sur de vrais disques.
 - [x] Auto-tests SMART court et long avec suivi (module `selftest` : `-t short|long`, `-X`, état par `-c -l selftest`), progression, annulation, 5 derniers résultats. ATA et NVMe. Formats reconstruits : à confirmer sur un vrai test (NVMe sous Windows notamment).
-- [ ] Scan de surface en lecture seule.
-- [ ] Test de capacité réelle (espace libre, puis disque entier avec confirmation).
-- [ ] Tests unitaires du moteur sur des sorties `smartctl` enregistrées (SATA, NVMe, pont USB sans SMART, disque défaillant).
+- [x] Scan de surface en lecture seule (sans cache, zones illisibles localisées à 64 Kio, blocs lents, profil de débit).
+- [x] Test de capacité réelle sur l'espace libre (méthode H2testw/f3, distingue secteurs abîmés et écrasés). Le mode « disque entier » destructif n'est pas fait : voir « Limites connues ».
+- [x] Tests unitaires du moteur sur des sorties `smartctl` enregistrées (SATA, NVMe, pont USB sans SMART, disque défaillant, auto-tests). Sorties reconstruites : aucune sortie réelle d'un disque du propriétaire dans le dépôt.
 
 ### Phase 2 · Rapport
-- [ ] Schéma JSON versionné du rapport.
-- [ ] Moteur de verdict avec la table de seuils.
-- [ ] Export HTML autonome.
-- [ ] Export PDF.
-- [ ] Liste des rapports dans l'écran Rapports.
+- [x] Schéma JSON versionné du rapport (`crates/report`, `SCHEMA_VERSION = 1`).
+- [x] Moteur de verdict avec la table de seuils (`Thresholds`, valeurs de la section 4).
+- [x] Export HTML autonome (tri, recherche, données brutes, empreinte SHA-256 du JSON).
+- [x] Export PDF (Typst 0.15 embarqué, polices DejaVu incluses, données passées en JSON : aucune injection possible).
+- [x] Liste des rapports dans l'écran Rapports et sur l'accueil.
 
 ### Phase 3 · Analyse complète
-- [ ] Inventaire matériel Windows et Linux.
-- [ ] Batterie (capacité, cycles).
-- [ ] Licence Windows, BitLocker, Intune, Autopilot.
-- [ ] Températures (prototype PawnIO / LibreHardwareMonitor sous Windows).
-- [ ] Test de charge CPU avec courbe de température.
-- [ ] Test RAM partiel en OS.
-- [ ] Tests interactifs : clavier, écran, webcam, micro, haut-parleurs, ports USB.
+- [x] Inventaire matériel Windows (WMI) et Linux (sysfs, /proc, dmidecode, lspci).
+- [x] Batterie (capacité d'origine et actuelle, cycles, santé).
+- [x] Licence Windows, BitLocker, Secure Boot, TPM, Azure AD / domaine (dsregcmd), Intune, Autopilot.
+- [ ] Températures CPU sous Windows : zones ACPI seulement (souvent absentes). Pilote noyau (PawnIO / LibreHardwareMonitor) non intégré. Linux : hwmon.
+- [x] Test de charge CPU : bridage détecté par la baisse de débit (sans pilote), référence prise après la fenêtre de turbo (~30 s), erreurs de calcul détectées.
+- [x] Test RAM partiel en OS (50 % de la mémoire disponible, 5 motifs).
+- [x] Tests interactifs : clavier (codes physiques), pixels morts, webcam, micro, haut-parleurs G/D, pavé tactile. Ports USB : dans la liste « devant le vendeur » (branche la clé dans chaque port).
 
 ### Phase 4 · Téléphone Android
-- [ ] ADB embarqué, détection et guide pour activer le débogage USB.
-- [ ] Collecte (voir section 5) et écran selon la maquette.
-- [ ] Liste de vérifications manuelles enregistrée dans le rapport.
+- [x] ADB recherché dans tools/ de la clé (`tools/fetch-tools-windows.ps1` le télécharge), détection et guide pour activer le débogage USB.
+- [x] Collecte (voir section 5) et écran selon la maquette. Aucune adresse de compte ni série en clair dans le rapport.
+- [x] Liste de vérifications manuelles enregistrée dans le rapport.
 
 ### Phase 5 · Récupération
-- [ ] PhotoRec embarqué (Windows et Linux).
-- [ ] Écran de paramètres, progression et liste des fichiers trouvés.
-- [ ] Avertissement TRIM quand la source est un SSD.
+- [x] PhotoRec lancé en mode `/cmd` (console sans fenêtre sous Windows, PDCurses exige une vraie console). Binaire à placer dans tools/testdisk/ (`tools/fetch-tools-windows.ps1`).
+- [x] Écran de paramètres (source, types, destination obligatoirement sur un autre disque), progression et fichiers trouvés.
+- [x] Avertissement TRIM quand la source est un SSD.
 
 ### Phase 6 · Clé bootable
-- [ ] Ventoy sur la clé, l'outil portable sur la partition de données.
-- [ ] ISO MemTest86+.
-- [ ] Linux live avec l'AppImage de l'outil (choix de la distribution à faire).
-- [ ] Procédure d'enrôlement Secure Boot documentée.
+- [x] Procédure Ventoy + outil sur la partition de données : `docs/CLE-BOOTABLE.md` ; `tools/assemble-usb.ps1` prépare le dossier. L'installation de Ventoy efface la clé : faite à la main.
+- [x] ISO MemTest86+ (procédure).
+- [x] Linux live : Ubuntu LTS proposé par défaut (procédure).
+- [x] Procédure d'enrôlement Secure Boot documentée.
+
+---
+
+### Limites connues (fin de la première version, 2026-09-29)
+- **Test de capacité « disque entier » (destructif) non fait** : il faudrait verrouiller et démonter les volumes du disque sous Windows, et une erreur de disque cible effacerait des données. Le mode espace libre couvre le cas d'achat (clé ou carte vide, formatée).
+- **Températures CPU sous Windows** : pas de pilote noyau ; seules les zones ACPI sont lues quand elles existent.
+- **Élévation Linux** : pas d'assistant `pkexec` ; lancer l'AppImage avec `sudo`.
+- **Formats non vérifiés sur du vrai matériel** : auto-tests SMART (surtout NVMe sous Windows), sorties adb (`dpm`, champs Samsung), PhotoRec réel, batterie de portable sous Windows. À confirmer au premier usage réel ; les analyseurs sont isolés et testés sur des sorties reconstruites.
+- **Outils tiers** : adb et PhotoRec ne sont pas dans le dépôt ; `tools/fetch-tools-windows.ps1` les télécharge depuis leurs sources officielles avec leurs sommes SHA-256. Pour Linux, placer `adb` et `photorec_static` dans `linux/tools/` de la clé.
+- **Runtime WebView2 fixe** : pris en charge par le code, jamais testé sur une machine sans WebView2.
 
 ---
 
@@ -345,3 +360,4 @@ Claude vérifie tout ce qui peut l'être sans matériel réel. Le propriétaire 
 | 2026-09-29 | Analyse de faisabilité, décisions (section 2), maquette UI (version 1 sombre, version 2 style bureau rejetée, version 1 passée en clair retenue), choix des boîtiers USB, création de ce plan. |
 | 2026-09-29 | Phase 0 : moteur Rust + smartctl, app Tauri + React, smartctl statique, AppImage testée sur 3 distros, CI Windows et Linux, décision PDF (Typst). Reste le test final sur le PC du propriétaire. |
 | 2026-09-29 | Test final phase 0 sur le PC du propriétaire (Windows 11, exe compilé en local : invite UAC et lecture SMART de 4 NVMe OK ; SmartScreen non testable, exe non téléchargé). Test chez un ami : doublon Intel RST corrigé. Phase 1 : vie restante, info-bulles, écran « Un disque ». CI : artefacts gardés 1 jour (quota de 0,5 Go atteint). |
+| 2026-09-29 | Phases 1 à 6 : cohérence, auto-tests, scan de surface, capacité réelle ; crates inventory, android, report, recovery, assemble ; écrans Accueil, Analyse complète, Téléphone, Récupération, Rapports ; rapports JSON/HTML/PDF ; scripts de la clé et procédure bootable. 229 tests du moteur. |
