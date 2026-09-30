@@ -1,0 +1,96 @@
+name: Vérification
+
+# Flux : feat/... → dev (aucune CI) → PR dev → master (ce workflow : tests et compilation, profil
+# de test non optimisé) → master (release.yml : builds optimisés et release, sans relancer les
+# tests).
+#
+# Aussi lancé sur master, SANS exécuter les tests : il compile seulement, pour remplir le cache
+# Rust. Une pull request ne peut lire que le cache de sa branche de base (master) ; sans ce
+# passage, chaque PR dev → master recompilerait tout depuis zéro.
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: verification-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: read
+
+jobs:
+  # Format, clippy et tests du moteur et de l'application, sous Linux.
+  verif-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: verification-linux
+          # Seul master écrit le cache : celui d'une PR ne resservirait à aucune autre.
+          save-if: ${{ github.ref == 'refs/heads/master' }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Dépendances système Tauri
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libwebkit2gtk-4.1-dev libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf
+      - name: smartctl statique (requis par la configuration Linux)
+        run: tools/build-smartctl-linux.sh
+      - name: Interface (typage + build)
+        working-directory: app
+        run: |
+          npm ci
+          npm run build
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Tests
+        if: github.event_name == 'pull_request'
+        run: cargo test --workspace
+      - name: Compilation des tests seulement (cache)
+        if: github.event_name != 'pull_request'
+        run: cargo test --workspace --no-run
+
+  # Le code propre à Windows (arbre des périphériques, liaison PCIe, windows-sys) n'est compilé
+  # que sous Windows : sans ce job, une erreur passerait la PR et casserait la release.
+  verif-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: verification-windows
+          save-if: ${{ github.ref == 'refs/heads/master' }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Interface (requise par la compilation de l'application)
+        working-directory: app
+        run: |
+          npm ci
+          npm run build
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      # pccheck-app exige les droits administrateur (manifeste) : testée sous Linux.
+      - name: Tests
+        if: github.event_name == 'pull_request'
+        run: cargo test --workspace --exclude pccheck-app
+      - name: Compilation des tests seulement (cache)
+        if: github.event_name != 'pull_request'
+        run: cargo test --workspace --exclude pccheck-app --no-run

@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
-# Release GitHub d'un build de master, en trois temps (voir .github/workflows/ci.yml) :
-#   release.sh create        brouillon créé après les tests (job check)
+# Release GitHub d'un build de master, en trois temps (voir .github/workflows/release.yml) :
+#   release.sh create              brouillon créé avant les builds (job brouillon)
 #   release.sh upload FICHIER...   fichiers joints par les jobs de build
-#   release.sh publish       brouillon publié quand tous les builds ont réussi ; les brouillons
-#                            laissés par des builds échoués ou annulés sont supprimés.
+#   release.sh publish             brouillon publié quand les deux builds ont réussi
 # Un build qui échoue ne publie donc jamais de release incomplète.
-# Nom : v<version de Cargo.toml>-build.<numéro d'exécution de la CI>, ex. v0.1.0-build.42.
+# Nom : v<version de Cargo.toml>-<commit court>, ex. v0.1.0-86df60b : une release par commit de
+# master, et une relance du workflow sur le même commit reprend le même brouillon.
 set -euo pipefail
 
 version=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
-tag="v${version}-build.${GITHUB_RUN_NUMBER}"
+short=${GITHUB_SHA::7}
+tag="v${version}-${short}"
 
 case "${1:-}" in
   create)
-    # Relance d'un job : le brouillon existe déjà.
     if ! gh release view "$tag" >/dev/null 2>&1; then
       gh release create "$tag" --draft --target "$GITHUB_SHA" \
-        --title "PCCheck $version · build $GITHUB_RUN_NUMBER" \
+        --title "PCCheck $version · $(date -u +%Y-%m-%d) · $short" \
         --generate-notes
     fi
     ;;
@@ -25,25 +25,23 @@ case "${1:-}" in
     gh release upload "$tag" "$@" --clobber
     ;;
   publish)
-    # Plusieurs builds de master peuvent tourner en même temps (fusions rapprochées) et finir
-    # dans le désordre : « latest » va toujours au numéro de build le plus grand.
-    gh release edit "$tag" --draft=false --latest=false
-    newest=$(gh release list --exclude-drafts --limit 100 --json tagName --jq '.[].tagName' |
-      sed -n 's/.*-build\.\([0-9][0-9]*\)$/\1/p' | sort -n | tail -1)
-    if [ "$newest" = "$GITHUB_RUN_NUMBER" ]; then
-      gh release edit "$tag" --latest
+    # Plusieurs builds peuvent tourner en même temps (fusions rapprochées) et finir dans le
+    # désordre : « latest » va seulement à la release du dernier commit de master.
+    head=$(gh api "repos/$GITHUB_REPOSITORY/commits/master" --jq .sha)
+    if [ "$head" = "$GITHUB_SHA" ]; then
+      gh release edit "$tag" --draft=false --latest
+    else
+      gh release edit "$tag" --draft=false --latest=false
     fi
-    # Brouillons abandonnés : seulement ceux dont le build est terminé (échoué ou annulé). Celui
-    # d'un build encore en cours est gardé, il sera publié à sa fin.
+    # Brouillons abandonnés (build échoué ou annulé) : supprimés, sauf ceux d'un build encore en
+    # cours, qui seront publiés à leur fin.
+    active=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/release.yml/runs?per_page=50" \
+      --jq '.workflow_runs[] | select(.status != "completed") | .head_sha[0:7]')
     gh release list --limit 100 --json tagName,isDraft \
       --jq '.[] | select(.isDraft) | .tagName' |
       while read -r old; do
         [ "$old" = "$tag" ] && continue
-        number=${old##*-build.}
-        case "$number" in '' | *[!0-9]*) continue ;; esac
-        status=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?per_page=100" \
-          --jq ".workflow_runs[] | select(.run_number == $number) | .status" | head -1)
-        [ "$status" = "completed" ] || [ -z "$status" ] || continue
+        grep -qxF "${old##*-}" <<<"$active" && continue
         gh release delete "$old" --yes
       done
     ;;

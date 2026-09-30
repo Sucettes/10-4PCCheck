@@ -41,6 +41,7 @@ Usage personnel uniquement, pas de distribution.
 | Distribution | Personnelle. Pas de signature de code prévue : l'avertissement SmartScreen sera contourné à la main. |
 | Priorité | Mode « un seul disque » d'abord, puis analyse complète. |
 | UI | Mode clair uniquement. Cartes et barre latérale, version 1 de la maquette passée en clair (voir section 6). |
+| Flux Git | Branches depuis `dev`, PR vers `dev` sans CI ; PR `dev` → `master` avec tests et compilation (non optimisée) ; `master` publie une release compilée au maximum d'optimisation, sans relancer les tests. Pas de mode démo ni de code ajouté seulement pour la documentation. |
 
 ---
 

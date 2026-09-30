@@ -4,7 +4,8 @@
 # elle-même (crate pccheck-app) exige des bibliothèques graphiques absentes du conteneur : elle
 # est exclue ici, et la CI du dépôt la vérifie sur chaque pull request (Windows et Linux).
 
-baseBranch: master
+# Branches de fonctionnalité créées depuis dev, PR ouvertes vers dev (voir CLAUDE.md).
+baseBranch: dev
 
 setup: >-
   export PATH="$HOME/.cargo/bin:$PATH" &&
