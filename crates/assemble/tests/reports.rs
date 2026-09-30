@@ -176,6 +176,7 @@ fn machine_report_with_real_inventory_renders() {
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join("machine.html"), html).unwrap();
     std::fs::write(dir.join("machine.pdf"), pdf).unwrap();
+    std::fs::write(dir.join("machine.json"), serde_json::to_vec(&rep).unwrap()).unwrap();
 }
 
 #[test]

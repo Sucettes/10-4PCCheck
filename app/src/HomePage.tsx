@@ -4,7 +4,7 @@ import type { Page } from "./App";
 import { formatBytes, mediaLabel } from "./format";
 import { Icon, type IconName } from "./icons";
 import type { Load } from "./load";
-import type { MachineInventory, ReportSummary } from "./moreTypes";
+import { machineName, type MachineInventory, type ReportSummary } from "./moreTypes";
 import { listReports, ReportTable } from "./ReportsPage";
 import type { DiskEntry } from "./types";
 
@@ -22,7 +22,7 @@ export function HomePage({ disks, go }: { disks: Load<DiskEntry[]>; go: (p: Page
       .catch(() => {});
   }, []);
 
-  const name = inv?.computer ? [inv.computer.manufacturer, inv.computer.model].filter(Boolean).join(" ") : null;
+  const name = inv ? machineName(inv) : null;
   const diskList = disks.state === "ok" ? disks.value : [];
   const summary = [
     inv?.cpu?.name,

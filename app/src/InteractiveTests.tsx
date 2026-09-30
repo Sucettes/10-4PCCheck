@@ -208,7 +208,12 @@ function KeyboardTest({ onClose }: { onClose: () => void }) {
       id: "keyboard",
       label: "Clavier",
       status: missing.length === 0 ? "pass" : "fail",
-      note: missing.length === 0 ? null : `${missing.map(label).join(", ")} sans réponse`,
+      note:
+        missing.length === 0
+          ? null
+          : missing.length <= 6
+            ? `${missing.map(label).join(", ")} sans réponse`
+            : `${missing.length} touches sans réponse (dont ${missing.slice(0, 4).map(label).join(", ")}…)`,
     });
     onClose();
   };

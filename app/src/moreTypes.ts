@@ -50,6 +50,7 @@ export interface ChecklistEntry {
 export interface MachineInventory {
   os: { name: string | null; version: string | null; build: string | null; display_version: string | null } | null;
   computer: { manufacturer: string | null; model: string | null; serial_number: string | null } | null;
+  board: { manufacturer: string | null; product: string | null } | null;
   cpu: { name: string | null; cores: number | null; threads: number | null; base_mhz: number | null } | null;
   memory: { total_bytes: number | null; modules: unknown[] } | null;
   battery: { count: number; health_pct: number | null; cycle_count: number | null } | null;
@@ -86,6 +87,15 @@ export interface RamTestResult {
   errors: number;
   duration_ms: number;
   cancelled: boolean;
+}
+
+/** Nom de la machine, même règle que le rapport (crates/assemble, `machine_name`) : modèle, sinon
+ *  carte mère (PC monté), sinon fabricant. */
+export function machineName(inv: MachineInventory): string {
+  const join = (...p: (string | null | undefined)[]) => p.filter(Boolean).join(" ");
+  if (inv.computer?.model) return join(inv.computer.manufacturer, inv.computer.model);
+  if (inv.board?.product) return join(inv.board.manufacturer, inv.board.product);
+  return inv.computer?.manufacturer ?? "Ordinateur";
 }
 
 // ---------- Récupération (crates/recovery) ----------

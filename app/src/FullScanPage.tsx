@@ -4,6 +4,7 @@ import { formatBytes } from "./format";
 import { interactiveResults, InteractiveTests, useResults } from "./InteractiveTests";
 import { cancelJob, useJob, waitForJob } from "./jobs";
 import { errorMessage } from "./load";
+import { machineName } from "./moreTypes";
 import type { ChecklistEntry, Level, MachineInventory, RamProgress, Report, ReportItem, StressSample } from "./moreTypes";
 import { ReportButton } from "./ReportButton";
 import { VerdictBanner } from "./Verdict";
@@ -38,7 +39,8 @@ const LEVEL_PILL: Record<Level, { label: string; cls: string }> = {
   bad: { label: "Critique", cls: "pill-bad" },
   neutral: { label: "—", cls: "pill-neutral" },
 };
-const RANK: Record<Level, number> = { neutral: 0, ok: 1, info: 2, warn: 3, bad: 4 };
+// « Info » ne décrit pas un état : il passe sous « Bon » pour la pastille de la carte.
+const RANK: Record<Level, number> = { neutral: 0, info: 1, ok: 2, warn: 3, bad: 4 };
 
 /** État gardé entre deux passages sur l'écran. */
 let savedChecks: Record<string, boolean> = {};
@@ -110,7 +112,7 @@ export function FullScanPage({ onRefreshDisks }: { onRefreshDisks: () => Promise
   };
 
   const running = step !== "idle" && step !== "done";
-  const name = inventory?.computer ? [inventory.computer.manufacturer, inventory.computer.model].filter(Boolean).join(" ") : "";
+  const name = inventory ? machineName(inventory) : "";
   const toggle = (label: string) =>
     setChecks((c) => {
       const next = { ...c, [label]: !c[label] };
@@ -236,13 +238,13 @@ function SectionCard({ title, items }: { title: string; items: ReportItem[] }) {
     <article className="panel section-card">
       <div className="card-head">
         <h3>{title}</h3>
-        {worst !== "neutral" && <span className={`pill ${pill.cls}`}>{pill.label}</span>}
+        {worst !== "neutral" && worst !== "info" && <span className={`pill ${pill.cls}`}>{pill.label}</span>}
       </div>
       <dl className="rows">
         {shown.map((i) => (
           <div className="row" key={i.label + i.value} title={i.detail ?? undefined}>
             <dt>{i.label}</dt>
-            <dd className={`lvl-${i.level}`}>{i.value}</dd>
+            <dd className={`lvl-${i.level}`}>{i.value || LEVEL_PILL[i.level].label}</dd>
           </div>
         ))}
       </dl>
