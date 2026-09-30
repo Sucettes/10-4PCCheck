@@ -79,24 +79,32 @@ Autotest de l'application : `PCCheck.exe --self-test sortie.json` (avec `__COMPA
 - Sorties d'outils : fixtures reconstruites dans `tests/fixtures/`, jamais une sortie réelle d'une machine.
 - Un bogue corrigé arrive avec le test qui l'aurait attrapé.
 
-## Branches et pull requests empilées
-
-Une branche par fonctionnalité, fusionnée dans `master` par pull request quand la CI est verte (`check`, `linux-appimage`, `windows`). `master` est protégée : pas de poussée directe, pas de réécriture. Chaque fusion dans `master` publie une release (`tools/ci/release.sh`).
-
-**Découpe le travail en pull requests empilées** dès qu'une fonctionnalité dépasse une petite modification : une suite de petites PR, chacune basée sur la branche de la précédente, chacune compréhensible seule et verte en CI.
+## Branches, pull requests et releases
 
 ```
-master ◄─ feat/vitesse-1-moteur ◄─ feat/vitesse-2-rapport ◄─ feat/vitesse-3-interface
+feat/... ──PR squash──► dev ──PR commit de fusion──► master ──► release
+            aucune CI          CI : verification.yml         release.yml (builds optimisés)
+```
+
+- **Toute branche part de `dev`** et revient dans `dev` par pull request, fusionnée en « squash », branche supprimée (`gh pr merge --squash --delete-branch`). **Aucune CI** sur ces PR : c'est volontaire, pour garder le flux rapide. Avant d'ouvrir la PR, lance toi-même en local les vérifications de la section Commandes.
+- **`dev` → `master`** : PR ouverte par l'utilisateur quand il est prêt, fusionnée en **commit de fusion** (jamais en squash : `master` aurait un commit que `dev` ne connaît pas, et chaque PR suivante réappliquerait tout l'historique). La CI `verification.yml` y exige `verif-linux` (format, clippy, tests) et `verif-windows` (clippy, tests), en profil de test non optimisé.
+- **Arrivée sur `master`** : `release.yml` construit l'AppImage et le paquet Windows au maximum d'optimisation, en parallèle, sans relancer les tests, puis publie la release (`tools/ci/release.sh`, une par commit) et le wiki.
+- `master` et `dev` sont protégées (règles du dépôt, `tools/github/setup-repo.sh protections`) : PR obligatoire, pas de poussée directe, pas de suppression ni de réécriture. Dependabot et AgentFly ouvrent leurs PR vers `dev`.
+
+**Découpe le travail en pull requests empilées** dès qu'une fonctionnalité dépasse une petite modification : une suite de petites PR, chacune basée sur la branche de la précédente, chacune compréhensible seule.
+
+```
+dev ◄─ feat/vitesse-1-moteur ◄─ feat/vitesse-2-rapport ◄─ feat/vitesse-3-interface
 ```
 
 - Découpe par couche ou par étape logique : moteur (crate + tests), puis application et rapport, puis interface. Une PR = un sujet, idéalement moins de 400 lignes modifiées.
 - Chaque PR cible la branche de la précédente (`gh pr create --base feat/vitesse-1-moteur`) et dit dans sa description où elle se place dans la pile (« 2/3, après #12 »).
-- Fusion du bas vers le haut, en « squash ». **Avant** de fusionner une PR, recible la suivante vers `master` : si GitHub la recible lui-même à la suppression de la branche fusionnée, il peut la fermer, et une PR fermée dont la branche a été repoussée ne se rouvre plus (il faut la recréer).
+- Fusion du bas vers le haut. **Avant** de fusionner une PR, recible la suivante vers `dev` : si GitHub la recible lui-même à la suppression de la branche fusionnée, il peut la fermer, et une PR fermée dont la branche a été repoussée ne se rouvre plus (il faut la recréer).
   ```
-  gh pr edit <PR suivante> --base master
+  gh pr edit <PR suivante> --base dev
   gh pr merge <PR du bas> --squash --delete-branch
   git fetch origin
-  git rebase --onto origin/master feat/vitesse-1-moteur feat/vitesse-3-interface --update-refs
+  git rebase --onto origin/dev feat/vitesse-1-moteur feat/vitesse-3-interface --update-refs
   git push --force-with-lease origin feat/vitesse-2-rapport feat/vitesse-3-interface
   ```
   `--update-refs` déplace d'un coup toutes les branches intermédiaires de la pile ; `--onto` retire les commits déjà fusionnés (le squash a créé un autre commit, git ne les reconnaîtrait pas seul).
@@ -116,4 +124,5 @@ Les issues étiquetées `agentflySucettes` sont traitées par AgentFly (voir `ag
 - Lecture directe d'un SSD ou d'un disque SMR neuf : une zone jamais écrite répond sans être lue ; la vitesse de lecture fiable est la relecture du fichier écrit.
 - ConPTY (TestDisk sous Windows) : la sortie ne se ferme qu'à la libération de la session ; la fin est détectée par `try_wait`.
 - Fins de ligne : les scripts `.sh` restent en LF (`.gitattributes`), sinon bash échoue sur la CI Windows.
-- CI : sur `master`, chaque commit a son propre groupe de concurrence (jamais annulé). Un groupe par branche avec `cancel-in-progress` annulait la release d'une fusion dès la fusion suivante.
+- CI : `release.yml` a un groupe de concurrence par commit (jamais annulé). Un groupe par branche avec `cancel-in-progress` annulait la release d'une fusion dès la fusion suivante.
+- Cache Rust : une pull request ne lit que le cache de sa branche de base. `verification.yml` tourne donc aussi sur `master`, sans exécuter les tests (`cargo test --no-run`), pour préparer le cache de la PR `dev` → `master` suivante.
