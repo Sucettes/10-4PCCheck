@@ -4,6 +4,7 @@
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -83,6 +84,9 @@ pub(crate) fn locate_with(
     })
 }
 
+/// Attente de la fin du tuyau de sortie, une fois le programme terminé.
+const READ_GRACE: Duration = Duration::from_secs(2);
+
 /// Lance `path args` et attend sa fin, au plus `timeout`. La sortie d'erreur est ignorée.
 pub fn run(path: &Path, args: &[&str], timeout: Duration) -> Result<ProcessOutput, ProcessError> {
     let mut cmd = Command::new(path);
@@ -97,11 +101,26 @@ pub fn run(path: &Path, args: &[&str], timeout: Duration) -> Result<ProcessOutpu
     };
     let mut child = cmd.spawn().map_err(|e| spawn_err(e.to_string()))?;
 
-    // Lecture dans un fil séparé : un tuyau plein bloquerait le programme avant sa fin.
+    // Lecture dans un fil séparé : un tuyau plein bloquerait le programme avant sa fin. Les
+    // octets vont dans un tampon partagé, lisible même si la fin du tuyau n'arrive jamais.
     let mut stdout = child.stdout.take().expect("stdout configuré en pipe");
-    let reader = thread::spawn(move || {
-        let mut buf = Vec::new();
-        stdout.read_to_end(&mut buf).map(|_| buf)
+    let collected = Arc::new(Mutex::new(Vec::new()));
+    let (done_tx, done_rx) = mpsc::channel();
+    let sink = Arc::clone(&collected);
+    thread::spawn(move || {
+        let mut chunk = [0u8; 8192];
+        let result = loop {
+            match stdout.read(&mut chunk) {
+                Ok(0) => break Ok(()),
+                Ok(n) => sink
+                    .lock()
+                    .unwrap_or_else(|p| p.into_inner())
+                    .extend_from_slice(&chunk[..n]),
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(e) => break Err(e),
+            }
+        };
+        let _ = done_tx.send(result);
     });
 
     let deadline = Instant::now() + timeout;
@@ -123,11 +142,13 @@ pub fn run(path: &Path, args: &[&str], timeout: Duration) -> Result<ProcessOutpu
         }
     };
 
-    let bytes = match reader.join() {
-        Ok(Ok(buf)) => buf,
-        Ok(Err(e)) => return Err(spawn_err(e.to_string())),
-        Err(_) => return Err(spawn_err("le fil de lecture de la sortie a paniqué".into())),
-    };
+    // Un petit-enfant qui a hérité du tuyau (le serveur que `adb` démarre en arrière-plan) le
+    // garde ouvert : la fin de lecture n'arrive alors jamais. Le programme est fini, sa sortie
+    // est écrite ; on n'attend la fin du tuyau qu'un court instant.
+    if let Ok(Err(e)) = done_rx.recv_timeout(READ_GRACE) {
+        return Err(spawn_err(e.to_string()));
+    }
+    let bytes = std::mem::take(&mut *collected.lock().unwrap_or_else(|p| p.into_inner()));
     Ok(ProcessOutput {
         // Sortie non UTF-8 (page de code OEM de certains outils Windows) : caractères remplacés.
         stdout: String::from_utf8_lossy(&bytes).into_owned(),

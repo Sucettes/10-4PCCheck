@@ -126,7 +126,7 @@ pub fn scan<R: BlockReader>(
         if ok {
             timings.push((offset, elapsed, len as u64));
         } else {
-            locate_bad(reader, &mut buf, offset, len, &mut bad);
+            locate_bad(reader, &mut buf, offset, len, &mut bad, cancel);
         }
         offset += len as u64;
 
@@ -152,9 +152,12 @@ fn locate_bad<R: BlockReader>(
     offset: u64,
     len: usize,
     bad: &mut Vec<ByteRange>,
+    cancel: &AtomicBool,
 ) {
     let mut sub = 0usize;
-    while sub < len {
+    // Sur un disque mourant, chaque relecture peut prendre plusieurs secondes : l'annulation est
+    // vérifiée entre deux relectures, pas seulement entre deux blocs de 4 Mio.
+    while sub < len && !cancel.load(Ordering::Relaxed) {
         let n = RETRY_BYTES.min(len - sub);
         let at = offset + sub as u64;
         if reader.read_block(at, &mut buf[..n]).is_err() {

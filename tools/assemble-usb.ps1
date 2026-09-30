@@ -35,7 +35,15 @@ try {
 $tools = Join-Path $root "tools\windows"
 foreach ($f in "smartctl.exe", "adb.exe", "AdbWinApi.dll", "AdbWinUsbApi.dll", "VERSIONS.txt") {
     $src = Join-Path $tools $f
-    if (Test-Path $src) { Copy-Item $src (Join-Path $win "tools\$f") -Force } else { Write-Warning "$f absent (tools\windows)" }
+    $dst = Join-Path $win "tools\$f"
+    if (-not (Test-Path $src)) { Write-Warning "$f absent (tools\windows)"; continue }
+    try {
+        Copy-Item $src $dst -Force -ErrorAction Stop
+    } catch {
+        # Serveur adb resté ouvert en arrière-plan : fichier verrouillé. Sans importance s'il est identique.
+        if ((Test-Path $dst) -and (Get-FileHash $src).Hash -eq (Get-FileHash $dst).Hash) { continue }
+        Write-Warning "$f en cours d'utilisation et différent : non remplacé (adb kill-server, puis relance ce script)"
+    }
 }
 $testdisk = Join-Path $tools "testdisk"
 if (Test-Path $testdisk) {

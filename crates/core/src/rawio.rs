@@ -208,11 +208,14 @@ pub fn windows_raw_path(name: &str) -> Option<String> {
 
 pub fn linux_raw_path(name: &str) -> Option<String> {
     if let Some(rest) = name.strip_prefix("/dev/nvme") {
-        // /dev/nvme0 (contrôleur) → /dev/nvme0n1 ; /dev/nvme0n1 déjà un espace de noms.
-        if rest.chars().all(|c| c.is_ascii_digit()) && !rest.is_empty() {
-            return Some(format!("{name}n1"));
-        }
-        return Some(name.to_string());
+        // /dev/nvme0 (contrôleur) → /dev/nvme0n1 ; /dev/nvme0n1 déjà un espace de noms. Rien
+        // d'autre : le nom vient de l'interface et sera ouvert en root.
+        let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
+        return match rest.split_once('n') {
+            None if digits(rest) => Some(format!("{name}n1")),
+            Some((ctrl, ns)) if digits(ctrl) && digits(ns) => Some(name.to_string()),
+            _ => None,
+        };
     }
     let letters = name.strip_prefix("/dev/sd")?;
     sd_letters_index(letters)?;
@@ -272,5 +275,7 @@ mod tests {
         );
         assert_eq!(linux_raw_path("/dev/sdb").as_deref(), Some("/dev/sdb"));
         assert_eq!(linux_raw_path("/dev/sd1"), None);
+        assert_eq!(linux_raw_path("/dev/nvme../../etc/shadow"), None);
+        assert_eq!(linux_raw_path("/dev/nvme0n"), None);
     }
 }

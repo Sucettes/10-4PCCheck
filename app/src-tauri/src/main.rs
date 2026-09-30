@@ -196,14 +196,54 @@ fn start_surface_scan(
     Ok(id)
 }
 
+/// Disques qu'un test d'écriture ne doit jamais remplir : celui du système (fichier d'échange,
+/// mises à jour) et celui de l'outil (rapports).
+fn protected_disks() -> Vec<pccheck_recovery::DiskId> {
+    let system = if cfg!(windows) {
+        PathBuf::from(format!(
+            "{}\\",
+            std::env::var("SystemDrive").unwrap_or_else(|_| "C:".into())
+        ))
+    } else {
+        PathBuf::from("/")
+    };
+    [Some(system), std::env::current_exe().ok()]
+        .into_iter()
+        .flatten()
+        .filter_map(|p| match pccheck_recovery::locate_destination(&p) {
+            Ok(pccheck_recovery::DestinationLocation::Disks { disks }) => Some(disks),
+            _ => None,
+        })
+        .flatten()
+        .collect()
+}
+
 /// Test de capacité réelle sur l'espace libre du volume `path`. Identifiant : `capacity`.
 #[tauri::command]
-fn start_capacity_test(
+async fn start_capacity_test(
     path: String,
     app: AppHandle,
     jobs: State<'_, Arc<Jobs>>,
     cache: State<'_, Cache>,
 ) -> Result<String, CommandError> {
+    let target = PathBuf::from(&path);
+    let protected = blocking(move || {
+        let protected = protected_disks();
+        match pccheck_recovery::locate_destination(&target) {
+            Ok(pccheck_recovery::DestinationLocation::Disks { disks }) => {
+                disks.iter().any(|d| protected.contains(d))
+            }
+            _ => false,
+        }
+    })
+    .await?;
+    if protected {
+        return Err(CommandError::Tool(
+            "Ce volume est sur le disque du système ou sur celui de PCCheck : le remplir pourrait \
+             bloquer Windows ou l'outil. Le test de capacité sert aux clés USB et cartes mémoire."
+                .into(),
+        ));
+    }
     let id = "capacity".to_string();
     let cache = cache.inner().clone();
     jobs.start(&app, id.clone(), move |ctx| {

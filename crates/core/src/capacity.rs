@@ -26,6 +26,11 @@ const CHUNK: usize = 4 << 20;
 const FILE_BYTES: u64 = 1 << 30;
 /// Espace laissé libre pour ne pas bloquer le système de fichiers.
 const MARGIN_BYTES: u64 = 32 << 20;
+/// Plus petit test utile (espace libre requis : ce budget plus la marge).
+const MIN_BUDGET: u64 = 16 << 20;
+/// Écriture refusée avant cette part du budget : la mémoire ne tient pas ce qu'elle annonce
+/// (en deçà, un système de fichiers plein un peu avant l'estimation reste normal).
+const WRITE_SHORTFALL_PCT: u64 = 2;
 const TEST_DIR: &str = "pccheck-capacite-test";
 const PROGRESS_EVERY: Duration = Duration::from_millis(250);
 
@@ -34,7 +39,7 @@ const PROGRESS_EVERY: Duration = Duration::from_millis(250);
 pub enum CapacityError {
     #[error("espace libre illisible sur {path} : {reason}")]
     FreeSpace { path: String, reason: String },
-    #[error("pas assez d'espace libre pour un test (au moins 64 Mo)")]
+    #[error("pas assez d'espace libre pour un test (au moins 48 Mo)")]
     NotEnoughSpace,
     #[error("création du dossier de test impossible : {0}")]
     CreateDir(String),
@@ -133,6 +138,10 @@ pub fn run_capacity_test(
     cancel: &AtomicBool,
     mut on_progress: impl FnMut(&CapacityProgress),
 ) -> Result<CapacityResult, CapacityError> {
+    let dir = target.join(TEST_DIR);
+    // Restes d'un test interrompu (application fermée, plantage) : supprimés AVANT de mesurer
+    // l'espace libre, sinon la zone qu'ils occupent ne serait jamais testée.
+    let _ = fs::remove_dir_all(&dir);
     let free = free_space(target).map_err(|e| CapacityError::FreeSpace {
         path: target.display().to_string(),
         reason: e.to_string(),
@@ -142,11 +151,12 @@ pub fn run_capacity_test(
         budget = budget.min(max);
     }
     budget = budget / CHUNK as u64 * CHUNK as u64;
-    if budget < (16 << 20) {
+    if budget < MIN_BUDGET {
         return Err(CapacityError::NotEnoughSpace);
     }
-    let dir = target.join(TEST_DIR);
     fs::create_dir_all(&dir).map_err(|e| CapacityError::CreateDir(e.to_string()))?;
+    // Suppression garantie à la sortie, même si `on_progress` panique.
+    let _cleanup = RemoveOnDrop(&dir);
     let seed = seed();
 
     let written = write_phase(&dir, budget, seed, cancel, &mut on_progress);
@@ -155,12 +165,17 @@ pub fn run_capacity_test(
     } else {
         Some(verify_phase(&written.files, seed, cancel, &mut on_progress))
     };
-    let _ = fs::remove_dir_all(&dir);
 
     let v = verify.unwrap_or_default();
     let cancelled = cancel.load(Ordering::Relaxed);
+    let short_write =
+        written.error.is_some() && written.bytes * 100 < budget * (100 - WRITE_SHORTFALL_PCT);
     let verdict = if cancelled || v.verified == 0 {
         CapacityVerdict::Incomplete
+    } else if short_write && v.first_bad.is_none() {
+        // Ce qui a été écrit se relit bien, mais la mémoire a refusé d'écrire dans l'espace
+        // qu'elle annonce libre : jamais « authentique ».
+        CapacityVerdict::Damaged
     } else {
         classify(&v, written.bytes)
     };
@@ -213,7 +228,7 @@ fn write_phase(
         let mut file = match rawio::create_uncached(&path) {
             Ok(f) => f,
             Err(e) => {
-                out.error = Some(e.to_string());
+                out.error = Some(format!("création de {} impossible : {e}", path.display()));
                 break;
             }
         };
@@ -224,8 +239,14 @@ fn write_phase(
             }
             fill(&mut buf, base + done, seed);
             if let Err(e) = file.write_all(&buf) {
-                // Disque plein ou puce qui ne répond plus : on vérifie ce qui a été écrit.
-                out.error = Some(e.to_string());
+                // Disque plein ou puce qui ne répond plus : on vérifie ce qui a été écrit. Sans
+                // O_DIRECT (repli Linux), les pages en attente doivent partir sur la clé avant
+                // la relecture, sinon elle viendrait du cache.
+                let _ = file.sync_all();
+                out.error = Some(format!(
+                    "écriture refusée à {} Mo : {e}",
+                    (base + done) >> 20
+                ));
                 out.files.push((path, base, done));
                 out.bytes += done;
                 break 'files;
@@ -363,8 +384,18 @@ fn record_bad(v: &mut Verified, at: u64, len: u64, overwritten: bool) {
     v.bad_after_first += len;
 }
 
-/// Tout bon jusqu'à une limite puis presque tout mauvais (≥ 90 %) : fausse capacité.
+/// Fausse capacité, deux signatures :
+/// - secteurs relus avec la position d'un autre (la puce boucle et écrase son début) : la
+///   capacité réelle est le total des secteurs bons, comme dans f3 ;
+/// - tout bon jusqu'à une limite puis presque tout mauvais (≥ 90 %) : écritures perdues au-delà.
+///
+/// Sinon, des erreurs : mémoire abîmée.
 fn classify(v: &Verified, written: u64) -> CapacityVerdict {
+    // Un secteur intact rangé à une autre position n'est pas une usure : au-delà de 1 % des
+    // octets relus, c'est un bouclage.
+    if v.overwritten > 0 && v.overwritten * 100 >= v.verified {
+        return CapacityVerdict::Fake { real_bytes: v.ok };
+    }
     match v.first_bad {
         None => CapacityVerdict::Genuine,
         Some(first) => {
@@ -375,6 +406,14 @@ fn classify(v: &Verified, written: u64) -> CapacityVerdict {
                 CapacityVerdict::Damaged
             }
         }
+    }
+}
+
+struct RemoveOnDrop<'a>(&'a Path);
+
+impl Drop for RemoveOnDrop<'_> {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(self.0);
     }
 }
 
@@ -460,6 +499,26 @@ mod tests {
             ..Verified::default()
         };
         assert_eq!(classify(&scattered, written), CapacityVerdict::Damaged);
+    }
+
+    #[test]
+    fn wrapping_chip_is_fake_even_if_its_start_is_bad() {
+        // 8 Go écrits, 5 Go réels : les 3 derniers Go ont écrasé le début (positions 0..3 Go
+        // relues avec la position d'un autre), la fin se relit « bonne » par le bouclage.
+        let v = Verified {
+            verified: 8 << 30,
+            ok: 5 << 30,
+            overwritten: 3 << 30,
+            first_bad: Some(0),
+            bad_after_first: 3 << 30,
+            ..Verified::default()
+        };
+        assert_eq!(
+            classify(&v, 8 << 30),
+            CapacityVerdict::Fake {
+                real_bytes: 5 << 30
+            }
+        );
     }
 
     #[test]

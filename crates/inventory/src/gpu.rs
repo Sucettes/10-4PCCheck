@@ -23,16 +23,27 @@ pub struct GpuSensor {
     pub degrees_to_throttle: Option<f64>,
 }
 
-const QUERY: &str =
-    "--query-gpu=name,temperature.gpu,clocks.sm,power.draw,utilization.gpu,temperature.gpu.tlimit";
+const FIELDS: &str = "name,temperature.gpu,clocks.sm,power.draw,utilization.gpu";
+/// Degrés avant bridage : champ récent, refusé par les anciens pilotes (toute la requête échoue).
+const TLIMIT: &str = ",temperature.gpu.tlimit";
 
 fn nvidia_smi() -> Option<PathBuf> {
-    let candidates: &[&str] = if cfg!(windows) {
-        &[r"C:\Windows\System32\nvidia-smi.exe"]
+    let candidates: Vec<PathBuf> = if cfg!(windows) {
+        let root = std::env::var_os("SystemRoot").unwrap_or_else(|| r"C:\Windows".into());
+        let programs =
+            std::env::var_os("ProgramFiles").unwrap_or_else(|| r"C:\Program Files".into());
+        vec![
+            // Pilotes DCH (depuis 2019), puis anciens pilotes.
+            PathBuf::from(root).join("System32").join("nvidia-smi.exe"),
+            PathBuf::from(programs).join(r"NVIDIA Corporation\NVSMI\nvidia-smi.exe"),
+        ]
     } else {
-        &["/usr/bin/nvidia-smi", "/usr/local/bin/nvidia-smi"]
+        vec![
+            "/usr/bin/nvidia-smi".into(),
+            "/usr/local/bin/nvidia-smi".into(),
+        ]
     };
-    candidates.iter().map(PathBuf::from).find(|p| p.is_file())
+    candidates.into_iter().find(|p| p.is_file())
 }
 
 /// Capteurs des cartes NVIDIA ; liste vide sans carte NVIDIA ou sans pilote.
@@ -44,13 +55,22 @@ pub fn gpu_sensors() -> Vec<GpuSensor> {
 }
 
 fn read_sensors(exe: &Path) -> Vec<GpuSensor> {
-    process::run(
-        exe,
-        &[QUERY, "--format=csv,noheader,nounits"],
-        Duration::from_secs(5),
-    )
-    .map(|o| parse_nvidia_csv(&o.stdout))
-    .unwrap_or_default()
+    let query = |fields: &str| {
+        let arg = format!("--query-gpu={fields}");
+        process::run(
+            exe,
+            &[&arg, "--format=csv,noheader,nounits"],
+            Duration::from_secs(5),
+        )
+        .ok()
+        // Pilote absent ou carte retirée : nvidia-smi écrit son message d'erreur sur la sortie
+        // standard, qu'il ne faut pas prendre pour une carte.
+        .filter(|o| o.code == Some(0))
+        .map(|o| parse_nvidia_csv(&o.stdout))
+    };
+    query(&format!("{FIELDS}{TLIMIT}"))
+        .or_else(|| query(FIELDS))
+        .unwrap_or_default()
 }
 
 /// Analyse la sortie CSV de `nvidia-smi` (une ligne par carte). « [N/A] » ou « [Not Supported] »
@@ -60,6 +80,10 @@ pub fn parse_nvidia_csv(text: &str) -> Vec<GpuSensor> {
         .filter(|l| !l.trim().is_empty())
         .filter_map(|l| {
             let cols: Vec<&str> = l.split(',').map(str::trim).collect();
+            // Au moins les 5 champs de base : une ligne de texte n'est pas une carte.
+            if cols.len() < 5 {
+                return None;
+            }
             let num = |i: usize| cols.get(i).and_then(|v| v.parse::<f64>().ok());
             Some(GpuSensor {
                 name: cols.first().filter(|n| !n.is_empty())?.to_string(),
@@ -132,6 +156,8 @@ mod tests {
         assert_eq!(s[0].degrees_to_throttle, Some(22.0));
         assert_eq!(s[1].sm_clock_mhz, None);
         assert_eq!(s[1].power_w, None);
+        let error = "NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver.";
+        assert!(parse_nvidia_csv(error).is_empty());
     }
 
     #[test]

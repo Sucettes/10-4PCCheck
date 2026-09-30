@@ -149,6 +149,12 @@ pub fn run_cpu_stress(
                 samples.push(sample);
                 (last_t, last_total) = (now, total);
                 next += SAMPLE_PERIOD;
+                // Fil privé de processeur plus d'une période (tous les cœurs chargés, veille) :
+                // on repart de maintenant au lieu d'enchaîner des échantillons de quelques µs,
+                // qui donneraient des débits absurdes et un faux bridage.
+                if next <= now {
+                    next = now + SAMPLE_PERIOD;
+                }
             }
             if finished {
                 break;

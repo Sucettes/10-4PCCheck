@@ -142,10 +142,11 @@ struct RawNvmeAdminCommands {
 }
 
 const HISTORY_LEN: usize = 5;
-/// Résultat NVMe 0 : terminé sans erreur. 1 et 2 : interrompu (commande, réinitialisation).
-/// 15 : entrée inutilisée. Le reste : échec.
+/// Résultat NVMe (norme NVMe, journal Device Self-test) 0 : terminé sans erreur. Interrompu :
+/// 1 commande d'arrêt, 2 réinitialisation, 3 espace de noms retiré, 4 formatage, 8 raison
+/// inconnue, 9 effacement sécurisé (sanitize). 15 : entrée inutilisée. Le reste (5, 6, 7) : échec.
 const NVME_RESULT_OK: u8 = 0;
-const NVME_RESULT_ABORTED: [u8; 3] = [1, 2, 3];
+const NVME_RESULT_ABORTED: [u8; 6] = [1, 2, 3, 4, 8, 9];
 const NVME_RESULT_UNUSED: u8 = 15;
 
 /// Analyse la sortie de `smartctl -c -l selftest -j`.

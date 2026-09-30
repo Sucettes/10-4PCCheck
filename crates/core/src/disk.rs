@@ -199,8 +199,11 @@ pub(crate) struct RawOutput {
     logical_block_size: Option<u64>,
 }
 
+// Champs imbriqués facultatifs : un seul champ absent ferait refuser tout le document par serde,
+// et le disque entier deviendrait illisible pour un détail d'affichage.
 #[derive(Debug, Deserialize)]
 struct RawString {
+    #[serde(default)]
     string: String,
 }
 
@@ -211,7 +214,8 @@ struct RawInterfaceSpeed {
 
 #[derive(Debug, Deserialize)]
 struct RawFormFactor {
-    name: String,
+    /// Absent quand smartctl ne connaît pas le code (seul `ata_value` est alors écrit).
+    name: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -411,12 +415,16 @@ impl RawOutput {
             protocol,
             media,
             standard,
-            sata_version: self.sata_version.map(|v| v.string),
+            sata_version: self
+                .sata_version
+                .map(|v| v.string)
+                .filter(|s| !s.is_empty()),
             link_speed: self
                 .interface_speed
                 .and_then(|i| i.current)
-                .map(|c| c.string),
-            form_factor: self.form_factor.map(|f| f.name),
+                .map(|c| c.string)
+                .filter(|s| !s.is_empty()),
+            form_factor: self.form_factor.and_then(|f| f.name),
             trim_supported: self.trim.and_then(|t| t.supported),
             bytes_written,
             bytes_read,
