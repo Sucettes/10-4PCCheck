@@ -316,7 +316,7 @@ fn verify_phase(
 /// 8 octets de position, 8 octets de signature du test, puis une suite pseudo-aléatoire
 /// déterminée par les deux (xorshift64).
 pub(crate) fn fill(buf: &mut [u8], pos: u64, seed: u64) {
-    for (i, sector) in buf.chunks_exact_mut(SECTOR).enumerate() {
+    for (i, sector) in buf.as_chunks_mut::<SECTOR>().0.iter_mut().enumerate() {
         fill_sector(sector, pos + (i * SECTOR) as u64, seed);
     }
 }
@@ -325,17 +325,17 @@ fn fill_sector(sector: &mut [u8], pos: u64, seed: u64) {
     sector[..8].copy_from_slice(&pos.to_le_bytes());
     sector[8..16].copy_from_slice(&seed.to_le_bytes());
     let mut x = (pos ^ seed) | 1;
-    for word in sector[16..].chunks_exact_mut(8) {
+    for word in sector[16..].as_chunks_mut::<8>().0 {
         x ^= x << 13;
         x ^= x >> 7;
         x ^= x << 17;
-        word.copy_from_slice(&x.to_le_bytes());
+        *word = x.to_le_bytes();
     }
 }
 
 pub(crate) fn check_chunk(buf: &[u8], pos: u64, seed: u64, v: &mut Verified) {
     let mut expected = [0u8; SECTOR];
-    for (i, sector) in buf.chunks_exact(SECTOR).enumerate() {
+    for (i, &sector) in buf.as_chunks::<SECTOR>().0.iter().enumerate() {
         let at = pos + (i * SECTOR) as u64;
         fill_sector(&mut expected, at, seed);
         if sector == expected {
@@ -405,7 +405,7 @@ fn mbps(bytes: u64, d: Duration) -> f64 {
 }
 
 // Tampon aligné requis par `ALIGN` : vérifié à la compilation.
-const _: () = assert!(CHUNK % ALIGN == 0 && ALIGN % SECTOR == 0);
+const _: () = assert!(CHUNK.is_multiple_of(ALIGN) && ALIGN.is_multiple_of(SECTOR));
 
 #[cfg(test)]
 mod tests {

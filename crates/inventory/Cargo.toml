@@ -11,3 +11,9 @@ pccheck-core = { path = "../core" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+# Requêtes WMI désérialisées avec serde. Sans chrono : les dates CIM sont lues comme texte.
+wmi = { version = "0.18", default-features = false }
+winreg = "0.56"
+windows-sys = { version = "0.61", features = ["Win32_System_SystemInformation"] }
