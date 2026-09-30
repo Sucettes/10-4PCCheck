@@ -267,6 +267,7 @@ fn speed_and_age_are_rated_on_the_disk_scale() {
             cancelled: false,
             scale,
             usb: None,
+            pcie: None,
         },
     );
     r.label_years.insert("/dev/sda".into(), 2019);
