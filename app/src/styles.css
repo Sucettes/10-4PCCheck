@@ -59,7 +59,7 @@ body {
 }
 .brand-name { font-family: var(--font-display); font-weight: 600; font-size: 18px; }
 .nav-item {
-  display: flex; align-items: center; height: 44px; padding: 0 12px; border-radius: 8px;
+  display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 12px; border-radius: 8px;
   color: #4b5260; text-decoration: none;
 }
 .nav-item.active { background: var(--active-bg); color: var(--active-text); font-weight: 500; }
@@ -278,3 +278,11 @@ h2 { margin: 0; font-family: var(--font-display); font-size: 18px; font-weight: 
   .detail-row { flex-direction: column; align-items: stretch; }
   .tests-panel { width: auto; }
 }
+
+.btn { display: inline-flex; align-items: center; gap: 10px; }
+.btn-sub { font-size: 12px; font-weight: 400; color: var(--text-2); }
+.profile { margin: 4px 0 0; display: flex; flex-direction: column; gap: 6px; }
+.profile svg { width: 100%; height: 120px; background: var(--bg); border-radius: 8px; }
+.profile-axis { stroke: var(--border-strong); stroke-width: 1; }
+.profile-line { fill: none; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.nav-item:hover:not(.active) { background: var(--bg); }

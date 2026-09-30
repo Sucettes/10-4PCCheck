@@ -1,22 +1,41 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { getAppInfo, isCommandError, reportSelfTest, scanDisks } from "./api";
-import { DiskDetail } from "./DiskDetail";
-import { Hint } from "./Hint";
-import { unreadableHint } from "./hints";
-import { commandErrorMessage, smartctlErrorMessage } from "./format";
-import { entryLevel } from "./status";
+import { useEffect, useState } from "react";
+import { getAppInfo, reportSelfTest, scanDisks } from "./api";
+import { DisksPage } from "./DisksPage";
+import { Icon, type IconName } from "./icons";
+import { errorMessage, type Load } from "./load";
 import type { AppInfo, DiskEntry } from "./types";
 
-type Load<T> = { state: "loading" } | { state: "ok"; value: T } | { state: "error"; message: string };
+export type Page = "accueil" | "analyse" | "disques" | "telephone" | "recuperation" | "rapports";
 
-function errorMessage(e: unknown): string {
-  if (isCommandError(e)) return commandErrorMessage(e);
-  return e instanceof Error ? e.message : String(e);
+const NAV: { id: Page; label: string; icon: IconName }[] = [
+  { id: "accueil", label: "Accueil", icon: "home" },
+  { id: "analyse", label: "Analyse complète", icon: "pulse" },
+  { id: "disques", label: "Disques", icon: "disk" },
+  { id: "telephone", label: "Téléphone", icon: "phone" },
+  { id: "recuperation", label: "Récupération", icon: "restore" },
+  { id: "rapports", label: "Rapports", icon: "report" },
+];
+
+function pageFromHash(): Page {
+  const id = window.location.hash.replace("#", "");
+  return NAV.some((n) => n.id === id) ? (id as Page) : "accueil";
+}
+
+/** Écran courant dans l'ancre de l'URL (#disques) : pas besoin de bibliothèque de routage. */
+function usePage(): [Page, (p: Page) => void] {
+  const [page, setPage] = useState<Page>(pageFromHash);
+  useEffect(() => {
+    const onHash = () => setPage(pageFromHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+  return [page, (p) => (window.location.hash = p)];
 }
 
 export default function App() {
   const [info, setInfo] = useState<Load<AppInfo>>({ state: "loading" });
   const [disks, setDisks] = useState<Load<DiskEntry[]>>({ state: "loading" });
+  const [page, go] = usePage();
 
   const refresh = () => {
     setDisks({ state: "loading" });
@@ -44,43 +63,53 @@ export default function App() {
 
   return (
     <div className="layout">
-      <Sidebar info={info} />
+      <Sidebar info={info} page={page} go={go} />
       <main className="main">
-        <header className="page-header">
-          <div>
-            <div className="eyebrow">Phase 1 · un seul disque</div>
-            <h1>Disques</h1>
-          </div>
-          <button type="button" className="btn" onClick={refresh} disabled={disks.state === "loading"}>
-            Actualiser
-          </button>
-        </header>
-
         {info.state === "ok" && !info.value.elevated && (
           <div className="banner banner-warn" role="status">
-            <strong>Droits limités.</strong> Relance l'outil en administrateur pour lire les données SMART.
+            <strong>Droits limités.</strong> Relance l'outil en administrateur pour lire les données SMART et les
+            disques.
           </div>
         )}
-        {info.state === "ok" && info.value.smartctl.status === "unavailable" && (
-          <div className="banner banner-bad" role="alert">
-            <strong>smartctl indisponible.</strong> {smartctlErrorMessage(info.value.smartctl.error)}
-          </div>
-        )}
-
-        <DisksView disks={disks} />
+        {page === "disques" && <DisksPage info={info} disks={disks} onRefresh={refresh} />}
+        {page !== "disques" && <ComingSoon title={NAV.find((n) => n.id === page)?.label ?? ""} />}
       </main>
     </div>
   );
 }
 
-function Sidebar({ info }: { info: Load<AppInfo> }) {
+function ComingSoon({ title }: { title: string }) {
+  return (
+    <header className="page-header">
+      <div>
+        <h1>{title}</h1>
+      </div>
+    </header>
+  );
+}
+
+function Sidebar({ info, page, go }: { info: Load<AppInfo>; page: Page; go: (p: Page) => void }) {
   return (
     <nav className="sidebar" aria-label="Navigation principale">
       <div className="brand">
         <div className="brand-mark">10-4</div>
         <div className="brand-name">PCCheck</div>
       </div>
-      <a className="nav-item active" href="#disques" aria-current="page">Disques</a>
+      {NAV.map((n) => (
+        <a
+          key={n.id}
+          className={page === n.id ? "nav-item active" : "nav-item"}
+          href={`#${n.id}`}
+          aria-current={page === n.id ? "page" : undefined}
+          onClick={(e) => {
+            e.preventDefault();
+            go(n.id);
+          }}
+        >
+          <Icon name={n.icon} />
+          {n.label}
+        </a>
+      ))}
       <div className="env">
         {info.state === "loading" && <div>Lecture de l'environnement…</div>}
         {info.state === "error" && <div className="text-bad">{info.message}</div>}
@@ -101,82 +130,5 @@ function Sidebar({ info }: { info: Load<AppInfo> }) {
         )}
       </div>
     </nav>
-  );
-}
-
-function DisksView({ disks }: { disks: Load<DiskEntry[]> }) {
-  const [selected, setSelected] = useState<string | null>(null);
-  const tabs = useRef<(HTMLButtonElement | null)[]>([]);
-
-  if (disks.state === "loading") return <p className="muted">Lecture des disques…</p>;
-  if (disks.state === "error") {
-    return (
-      <div className="banner banner-bad" role="alert">
-        <strong>Lecture impossible.</strong> {disks.message}
-      </div>
-    );
-  }
-  const entries = disks.value;
-  if (entries.length === 0) {
-    return <p className="muted">Aucun disque détecté. Vérifie les droits administrateur et les branchements.</p>;
-  }
-  // Sélection gardée après « Actualiser » si le disque est toujours là, sinon le premier.
-  const current = entries.find((e) => e.device.name === selected) ?? entries[0]!;
-  const index = entries.indexOf(current);
-
-  // Motif ARIA « onglets » : flèches gauche/droite, Début et Fin déplacent la sélection.
-  const onKeyDown = (e: KeyboardEvent) => {
-    const next = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: entries.length - 1 }[e.key];
-    if (next === undefined) return;
-    e.preventDefault();
-    const i = (next + entries.length) % entries.length;
-    setSelected(entries[i]!.device.name);
-    tabs.current[i]?.focus();
-  };
-
-  return (
-    <>
-      <div className="disk-tabs" role="tablist" aria-label="Disques détectés" onKeyDown={onKeyDown}>
-        {entries.map((entry, i) => {
-          const active = entry === current;
-          const pct = entry.info?.life_remaining_pct ?? null;
-          return (
-            <button
-              key={entry.device.name}
-              ref={(el) => {
-                tabs.current[i] = el;
-              }}
-              type="button"
-              role="tab"
-              id={`tab-${i}`}
-              aria-selected={active}
-              aria-controls="disk-panel"
-              tabIndex={active ? 0 : -1}
-              className={active ? "disk-tab active" : "disk-tab"}
-              onClick={() => setSelected(entry.device.name)}
-            >
-              <span className={`dot dot-${entryLevel(entry)}`} aria-hidden="true" />
-              <span className="disk-tab-name">{entry.info?.model ?? entry.device.info_name}</span>
-              {pct !== null && <span className="disk-tab-pct">{pct} %</span>}
-            </button>
-          );
-        })}
-      </div>
-      <section id="disk-panel" role="tabpanel" aria-labelledby={`tab-${index}`}>
-        {current.info ? (
-          <DiskDetail key={current.device.name} disk={current.info} />
-        ) : (
-          <div className="panel">
-            <div className="card-head">
-              <h2>{current.device.info_name}</h2>
-              <Hint hint={unreadableHint}>
-                <span className="pill pill-neutral">Illisible</span>
-              </Hint>
-            </div>
-            <p className="muted">{current.error ? smartctlErrorMessage(current.error) : "Erreur inconnue."}</p>
-          </div>
-        )}
-      </section>
-    </>
   );
 }

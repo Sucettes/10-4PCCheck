@@ -135,6 +135,17 @@ export const selfTestHint: HintText = {
   ],
 };
 
+export const surfaceHint: HintText = {
+  title: "Scan de surface",
+  body: [
+    "Lit tout le disque, du premier au dernier secteur, sans rien écrire. Tes fichiers ne sont pas touchés.",
+    "Zone illisible : des secteurs ne rendent plus leurs données. Même une seule est un défaut grave.",
+    "Bloc lent : le disque a dû relire plusieurs fois, signe de secteurs fragiles qui risquent de lâcher.",
+    "La courbe montre le débit selon la position. Sur un disque dur, elle descend doucement vers la fin (c'est normal) ; un creux brutal signale une zone faible.",
+    "Droits administrateur requis. Un disque dur de 1 To prend environ 2 heures.",
+  ],
+};
+
 export const serialHint: HintText = {
   title: "Numéro de série",
   body: [

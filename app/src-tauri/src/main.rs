@@ -2,10 +2,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod elevation;
+mod jobs;
 mod self_test;
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
+use jobs::{JobState, Jobs};
+use pccheck_core::{capacity, surface};
 use pccheck_core::{DiskEntry, ScanDevice, SelfTestKind, SelfTestStatus, Smartctl, SmartctlError};
 use serde::Serialize;
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, State, WebviewWindow};
@@ -101,6 +105,48 @@ async fn smart_test_status(
 ) -> Result<SelfTestStatus, CommandError> {
     let smartctl = state.smartctl.clone()?;
     Ok(blocking(move || smartctl.self_test_status(&device)).await??)
+}
+
+/// État d'une tâche longue (voir `jobs`). Tâche inconnue : état vide.
+#[tauri::command]
+fn job_state(id: String, jobs: State<'_, Arc<Jobs>>) -> JobState {
+    jobs.state(&id)
+}
+
+#[tauri::command]
+fn cancel_job(id: String, jobs: State<'_, Arc<Jobs>>) {
+    jobs.cancel(&id);
+}
+
+/// Scan de surface en lecture seule. Identifiant de tâche : `surface:<chemin smartctl>`.
+#[tauri::command]
+fn start_surface_scan(
+    device: ScanDevice,
+    total_bytes: u64,
+    app: AppHandle,
+    jobs: State<'_, Arc<Jobs>>,
+) -> Result<String, CommandError> {
+    let id = format!("surface:{}", device.name);
+    jobs.start(&app, id.clone(), move |ctx| {
+        surface::scan_device(&device.name, total_bytes, &ctx.cancel, |p| ctx.progress(p))
+    })
+    .map_err(CommandError::Internal)?;
+    Ok(id)
+}
+
+/// Test de capacité réelle sur l'espace libre du volume `path`. Identifiant : `capacity`.
+#[tauri::command]
+fn start_capacity_test(
+    path: String,
+    app: AppHandle,
+    jobs: State<'_, Arc<Jobs>>,
+) -> Result<String, CommandError> {
+    let id = "capacity".to_string();
+    jobs.start(&app, id.clone(), move |ctx| {
+        capacity::run_capacity_test(Path::new(&path), None, &ctx.cancel, |p| ctx.progress(p))
+    })
+    .map_err(CommandError::Internal)?;
+    Ok(id)
 }
 
 #[tauri::command]
@@ -214,6 +260,7 @@ fn main() {
                 }
             }
             let smartctl = Smartctl::locate(&tool_dirs(app.handle()));
+            app.manage(Arc::new(Jobs::default()));
             app.manage(AppState {
                 smartctl,
                 self_test,
@@ -226,12 +273,32 @@ fn main() {
             start_smart_test,
             abort_smart_test,
             smart_test_status,
+            job_state,
+            cancel_job,
+            start_surface_scan,
+            start_capacity_test,
             self_test_report
         ])
-        .run(tauri::generate_context!());
+        .build(tauri::generate_context!());
 
-    if let Err(e) = result {
-        eprintln!("échec du démarrage de l'application : {e}");
-        std::process::exit(1);
-    }
+    let app = match result {
+        Ok(app) => app,
+        Err(e) => {
+            eprintln!("échec du démarrage de l'application : {e}");
+            std::process::exit(1);
+        }
+    };
+    app.run(|handle, event| {
+        // Fermeture : on annule les tâches et on leur laisse le temps de nettoyer
+        // (fichiers du test de capacité, processus PhotoRec).
+        if let tauri::RunEvent::Exit = event {
+            if let Some(jobs) = handle.try_state::<Arc<Jobs>>() {
+                jobs.cancel_all();
+                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+                while jobs.any_running() && std::time::Instant::now() < deadline {
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+            }
+        }
+    });
 }

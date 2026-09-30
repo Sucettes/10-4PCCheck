@@ -17,6 +17,7 @@ import {
 } from "./hints";
 import { formatBytes, formatHex, formatNumber, maskSerial, mediaLabel } from "./format";
 import { SelfTests } from "./SelfTests";
+import { SurfaceScan } from "./SurfaceScan";
 import { attributeLevel, lifeLevel, nvmeStatus, smartVerdict } from "./status";
 import type { AtaAttribute, AttributeStatus, Check, DiskInfo, NvmeHealth } from "./types";
 
@@ -65,6 +66,8 @@ export function DiskDetail({ disk }: { disk: DiskInfo }) {
         {disk.checks.length > 0 && <Checks checks={disk.checks} />}
         <SelfTests disk={disk} />
       </div>
+
+      <SurfaceScan disk={disk} />
 
       <TechSheet disk={disk} />
 
