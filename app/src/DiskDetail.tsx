@@ -16,6 +16,7 @@ import {
   trimHint,
   type HintText,
   transferHint,
+  rotationHint,
   featuresHint,
   usbHint,
 } from "./hints";
@@ -218,6 +219,18 @@ function transferText(disk: DiskInfo, pcie: PcieLink | null): string | null {
     : `${disk.link_speed} (maximum ${disk.link_speed_max})`;
 }
 
+/** Vitesse de rotation : toujours affichée, avec la raison quand elle manque. */
+function rotationText(disk: DiskInfo): string {
+  switch (disk.media.kind) {
+    case "hdd":
+      return `${nf0.format(disk.media.rpm)} tr/min`;
+    case "ssd":
+      return "Aucune (SSD, sans pièce mobile)";
+    case "unknown":
+      return "Non rapportée par le disque";
+  }
+}
+
 /** Fonctionnalités prises en charge, avec leur état quand la norme en a un. */
 function FeatureList({ features }: { features: AtaFeature[] }) {
   const supported = features.filter((f) => f.supported);
@@ -261,6 +274,7 @@ function TechSheet({ disk }: { disk: DiskInfo }) {
         "Inconnu"
       ),
     },
+    { label: "Vitesse de rotation", hint: rotationHint, value: rotationText(disk) },
     { label: "Interface", hint: interfaceHint(disk), value: iface ?? "Inconnue" },
     { label: "Mode de transfert", hint: transferHint, value: transferText(disk, pcie) },
     { label: "Liaison USB", hint: usbHint, value: usb ? usbText(usb) : null },

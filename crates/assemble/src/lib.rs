@@ -110,6 +110,17 @@ fn media_label(d: &DiskInfo) -> String {
     }
 }
 
+/// Vitesse de rotation, toujours écrite dans la fiche : la raison quand le disque ne la déclare pas.
+fn rotation_text(d: &DiskInfo) -> String {
+    match &d.media {
+        MediaKind::Hdd { rpm } => format!("{} tr/min", fmt_int(u64::from(*rpm))),
+        MediaKind::Ssd => "Aucune (SSD, sans pièce mobile)".into(),
+        MediaKind::Unknown => {
+            "Non rapportée par le disque (modèle ancien ou boîtier USB qui la masque)".into()
+        }
+    }
+}
+
 fn raw_attr(d: &DiskInfo, id: u8) -> Option<u64> {
     d.ata_attributes
         .iter()
@@ -558,6 +569,7 @@ fn speed_items(sp: &SpeedResult) -> Vec<Item> {
 fn disk_details(d: &DiskInfo) -> Vec<Detail> {
     let mut v = vec![
         Detail::new("Type", media_label(d)),
+        Detail::new("Vitesse de rotation", rotation_text(d)),
         Detail::new(
             "Capacité",
             d.capacity_bytes

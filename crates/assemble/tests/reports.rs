@@ -87,6 +87,38 @@ fn healthy_ssd_at_54_degrees_is_to_watch_only() {
     assert_eq!(table.rows[0][0], "05");
 }
 
+/// Valeur d'une ligne de la fiche du disque dans le rapport.
+fn detail(rep: &pccheck_report::Report, label: &str) -> String {
+    rep.subject
+        .details
+        .iter()
+        .find(|d| d.label == label)
+        .unwrap_or_else(|| panic!("ligne « {label} » absente de la fiche"))
+        .value
+        .clone()
+}
+
+#[test]
+fn rotation_speed_is_always_in_the_disk_sheet() {
+    let r = results_with_disks();
+    let hdd = build_disk_report(&r, "/dev/sdb", vec![]).unwrap();
+    let rpm = detail(&hdd, "Vitesse de rotation");
+    assert!(
+        rpm.ends_with(" tr/min") && rpm.chars().next().unwrap().is_ascii_digit(),
+        "{rpm}"
+    );
+    let ssd = build_disk_report(&r, "/dev/sda", vec![]).unwrap();
+    assert!(detail(&ssd, "Vitesse de rotation").starts_with("Aucune"));
+    let nvme = build_disk_report(&r, "/dev/nvme0", vec![]).unwrap();
+    assert!(detail(&nvme, "Vitesse de rotation").starts_with("Aucune"));
+
+    // Disque qui ne déclare pas sa rotation (champ absent de la sortie de smartctl).
+    let mut unknown = results_with_disks();
+    unknown.disks[1].info.as_mut().unwrap().media = pccheck_core::MediaKind::Unknown;
+    let rep = build_disk_report(&unknown, "/dev/sdb", vec![]).unwrap();
+    assert!(detail(&rep, "Vitesse de rotation").starts_with("Non rapportée"));
+}
+
 #[test]
 fn unknown_disk_is_an_error() {
     assert!(build_disk_report(&Results::default(), "/dev/sdz", vec![]).is_err());
