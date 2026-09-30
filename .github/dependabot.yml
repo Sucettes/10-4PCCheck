@@ -1,9 +1,11 @@
 # Mises à jour de dépendances proposées par pull request, une fois par semaine, regroupées pour
-# éviter une PR par paquet. Chaque PR passe la CI avant d'être fusionnée.
+# éviter une PR par paquet. Les PR visent dev, comme toute modification : elles sont vérifiées
+# par la CI avec le reste, à la PR dev → master.
 version: 2
 updates:
   - package-ecosystem: cargo
     directory: /
+    target-branch: dev
     schedule:
       interval: weekly
     groups:
@@ -11,6 +13,7 @@ updates:
         patterns: ["*"]
   - package-ecosystem: npm
     directory: /app
+    target-branch: dev
     schedule:
       interval: weekly
     groups:
@@ -18,5 +21,6 @@ updates:
         patterns: ["*"]
   - package-ecosystem: github-actions
     directory: /
+    target-branch: dev
     schedule:
       interval: weekly

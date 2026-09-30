@@ -313,6 +313,15 @@ export const usbHint: HintText = {
   ],
 };
 
+export const rotationHint: HintText = {
+  title: "Vitesse de rotation",
+  body: [
+    "Vitesse des plateaux d'un disque dur, en tours par minute, déclarée par le disque lui-même (smartctl).",
+    "7 200 tr/min : disque de bureau rapide. 5 400 ou 5 900 tr/min : disque d'ordinateur portable, externe ou d'archivage, plus lent mais plus silencieux. Plus la rotation est lente, plus le temps d'accès est long.",
+    "« Non rapportée » : le disque ne la déclare pas (modèles d'avant 2009 environ), ou un boîtier USB bloque ces informations. Les compteurs SMART et le test de vitesse restent la meilleure indication.",
+  ],
+};
+
 export const transferHint: HintText = {
   title: "Mode de transfert",
   body: [

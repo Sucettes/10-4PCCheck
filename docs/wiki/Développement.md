@@ -36,11 +36,10 @@ L'application a un mode d'autotest : `PCCheck.exe --self-test sortie.json` affic
 
 ## Branches, CI et releases
 
-- Une branche par fonctionnalité, fusionnée dans `master` par pull request ; une fonctionnalité importante est découpée en **pull requests empilées** (moteur, puis application et rapport, puis interface), fusionnées du bas vers le haut. Détails dans `CLAUDE.md`.
-- Les issues étiquetées `agentflySucettes` sont traitées par AgentFly (`agentfly.yml`).
-- La CI (`.github/workflows/ci.yml`) vérifie le format, clippy et les tests, puis construit l'AppImage Linux et l'exécutable Windows (avec autotest).
-- Chaque mise à jour de `master` qui passe publie une release (`tools/ci/release.sh`).
-- Le wiki est publié depuis `docs/wiki/` à chaque mise à jour de `master` : modifie les pages dans le dépôt, jamais directement sur GitHub. Une pull request qui change un comportement met à jour sa documentation (règle détaillée dans `CLAUDE.md`).
+- Chaque fonctionnalité a sa branche, créée depuis `dev`, et revient dans `dev` par pull request (squash). Ces PR ne lancent **aucune CI**, pour garder le flux rapide ; une fonctionnalité importante est découpée en **pull requests empilées**. Détails dans `CLAUDE.md`.
+- Quand `dev` est prête, une PR `dev` → `master` (commit de fusion) lance `verification.yml` : format, clippy et tests sous Linux, clippy et tests sous Windows.
+- Chaque arrivée sur `master` lance `release.yml` : AppImage Linux et paquet Windows compilés au maximum d'optimisation, en parallèle, vérifiés par l'autotest, puis publiés en release (`tools/ci/release.sh`, une release par commit), et wiki mis à jour.
+- Les issues étiquetées `agentflySucettes` sont traitées par AgentFly (`agentfly.yml`) ; AgentFly et Dependabot ouvrent leurs PR vers `dev`.
 
 ## Données personnelles
 
