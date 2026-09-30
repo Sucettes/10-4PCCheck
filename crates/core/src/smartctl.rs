@@ -1,10 +1,7 @@
 //! Localisation et exécution du binaire `smartctl` embarqué sur la clé.
 
-use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use serde::Serialize;
 use thiserror::Error;
@@ -13,6 +10,7 @@ use crate::disk::{
     dedupe_disks, parse_disk, parse_scan, DiskEntry, DiskInfo, RawOutput, ScanDevice,
     FATAL_EXIT_BITS,
 };
+use crate::process::{self, ProcessError};
 use crate::selftest::{parse_self_test_status, SelfTestKind, SelfTestStatus};
 
 /// Variable d'environnement qui force le chemin de smartctl (tests, développement).
@@ -77,17 +75,9 @@ impl Smartctl {
     }
 
     fn locate_with(env: Option<PathBuf>, dirs: &[PathBuf]) -> Result<Self, SmartctlError> {
-        let mut searched = Vec::new();
-        let candidates = env
-            .into_iter()
-            .chain(dirs.iter().map(|d| d.join(BINARY_NAME)));
-        for candidate in candidates {
-            if candidate.is_file() {
-                return Ok(Smartctl::new(candidate));
-            }
-            searched.push(candidate);
-        }
-        Err(SmartctlError::NotFound { searched })
+        process::locate_with(env, dirs, BINARY_NAME)
+            .map(Smartctl::new)
+            .map_err(SmartctlError::from)
     }
 
     /// Première ligne de `smartctl --version`, ex. « smartctl 7.5 2025-04-30 r5714 ».
@@ -153,62 +143,16 @@ impl Smartctl {
     /// Lance smartctl et renvoie sa sortie standard. Le code de sortie n'est pas une erreur ici :
     /// smartctl l'utilise comme masque de bits, interprété par l'appelant à partir du JSON.
     fn run(&self, args: &[&str]) -> Result<String, SmartctlError> {
-        let mut cmd = Command::new(&self.path);
-        cmd.args(args)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null());
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-            cmd.creation_flags(CREATE_NO_WINDOW);
-        }
-        let mut child = cmd.spawn().map_err(|e| SmartctlError::Spawn {
-            path: self.path.clone(),
-            reason: e.to_string(),
-        })?;
+        Ok(process::run(&self.path, args, self.timeout)?.stdout)
+    }
+}
 
-        // Lecture dans un fil séparé : un tuyau plein bloquerait smartctl avant sa fin.
-        let mut stdout = child.stdout.take().expect("stdout configuré en pipe");
-        let reader = thread::spawn(move || {
-            let mut buf = String::new();
-            stdout.read_to_string(&mut buf).map(|_| buf)
-        });
-
-        let deadline = Instant::now() + self.timeout;
-        loop {
-            match child.try_wait() {
-                Ok(Some(_)) => break,
-                Ok(None) if Instant::now() >= deadline => {
-                    // Échec du kill ignoré à dessein : le processus peut s'être terminé entre-temps.
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    return Err(SmartctlError::Timeout {
-                        seconds: self.timeout.as_secs(),
-                        args: args.join(" "),
-                    });
-                }
-                Ok(None) => thread::sleep(Duration::from_millis(20)),
-                Err(e) => {
-                    return Err(SmartctlError::Spawn {
-                        path: self.path.clone(),
-                        reason: e.to_string(),
-                    })
-                }
-            }
-        }
-
-        match reader.join() {
-            Ok(Ok(buf)) => Ok(buf),
-            Ok(Err(e)) => Err(SmartctlError::Spawn {
-                path: self.path.clone(),
-                reason: e.to_string(),
-            }),
-            Err(_) => Err(SmartctlError::Spawn {
-                path: self.path.clone(),
-                reason: "le fil de lecture de la sortie a paniqué".into(),
-            }),
+impl From<ProcessError> for SmartctlError {
+    fn from(e: ProcessError) -> Self {
+        match e {
+            ProcessError::NotFound { searched, .. } => SmartctlError::NotFound { searched },
+            ProcessError::Spawn { path, reason } => SmartctlError::Spawn { path, reason },
+            ProcessError::Timeout { seconds, args, .. } => SmartctlError::Timeout { seconds, args },
         }
     }
 }
@@ -226,6 +170,8 @@ fn device_args<'a>(base: &[&'a str], device: &'a ScanDevice) -> Vec<&'a str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    use std::{thread, time::Instant};
 
     #[test]
     fn locate_reports_every_searched_path() {

@@ -1,0 +1,12 @@
+[package]
+name = "pccheck-report"
+description = "10-4 PCCheck : rapport versionné, verdict, export HTML et PDF."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

@@ -1,0 +1,13 @@
+[package]
+name = "pccheck-android"
+description = "10-4 PCCheck : analyse d'un téléphone Android par ADB."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+pccheck-core = { path = "../core" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

@@ -2140,6 +2140,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pccheck-android"
+version = "0.1.0"
+dependencies = [
+ "pccheck-core",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "pccheck-app"
 version = "0.1.0"
 dependencies = [
@@ -2154,6 +2164,35 @@ dependencies = [
 
 [[package]]
 name = "pccheck-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "pccheck-inventory"
+version = "0.1.0"
+dependencies = [
+ "pccheck-core",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "pccheck-recovery"
+version = "0.1.0"
+dependencies = [
+ "pccheck-core",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "pccheck-report"
 version = "0.1.0"
 dependencies = [
  "serde",
