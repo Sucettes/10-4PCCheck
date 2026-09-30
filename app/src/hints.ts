@@ -284,7 +284,7 @@ export const nvmeHints = {
 export const speedHint: HintText = {
   title: "Test de vitesse",
   body: [
-    "Lecture : 256 Mo lus au début, au milieu et à la fin du disque. Sur un disque dur, la fin est normalement environ deux fois plus lente que le début.",
+    "Lecture directe : au début, au milieu et à la fin du disque, autant de données que la taille choisie (au moins 256 Mo par position, 1 Go sur un SSD). Sur un disque dur, la fin est normalement environ deux fois plus lente que le début. Mesure indicative : un disque système occupé par Windows ou une zone jamais écrite la fausse.",
     "Temps d'accès : 100 lectures à des endroits pris au hasard. C'est la lenteur ressentie quand on ouvre beaucoup de petits fichiers (Windows, programmes, photos) ; c'est souvent la première chose qui se dégrade sur un vieux disque dur.",
     "Écriture : un fichier neuf (1, 5 ou 10 Go au choix) est écrit dans l'espace libre, relu en vérifiant chaque bloc, puis supprimé. Aucun fichier existant n'est touché. Un fichier supprimé encore récupérable peut en revanche être écrasé : ne lance pas ce test sur un disque dont tu veux récupérer des fichiers.",
     "Relecture : la vitesse de lecture sur ces données réelles. Plus fiable que la lecture directe sur un disque neuf, un disque SMR ou un SSD, qui répondent instantanément sur une zone jamais écrite. Un bloc relu différent de ce qui a été écrit est un défaut grave.",

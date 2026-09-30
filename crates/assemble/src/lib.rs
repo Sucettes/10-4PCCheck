@@ -386,7 +386,19 @@ fn speed_items(sp: &SpeedResult) -> Vec<Item> {
                     })
                     .collect::<Vec<_>>()
                     .join(", ");
+                // La relecture (données réelles) fait foi quand elle existe : la lecture directe
+                // est faussée par un disque système occupé ou une zone jamais écrite.
+                let has_readback = sp.write.as_ref().is_some_and(|w| w.readback.is_some());
                 let (value, level, mut detail) = match scale {
+                    _ if has_readback => (
+                        mbps_text(first.mbps),
+                        Level::Info,
+                        format!(
+                            "{zones}. Mesure indicative : un disque système occupé par Windows ou \
+                             une zone jamais écrite (qui répond sans être lue) la fausse. La note \
+                             de lecture se fonde sur la relecture."
+                        ),
+                    ),
                     Some(sc) => {
                         let (word, level) = rating_level(sc.rate_throughput(&sc.read, first.mbps));
                         (
@@ -409,7 +421,12 @@ fn speed_items(sp: &SpeedResult) -> Vec<Item> {
                         mbps_text(cap)
                     ));
                 }
-                items.push(Item::new("Lecture", value, level).with_detail(detail));
+                let label = if has_readback {
+                    "Lecture directe"
+                } else {
+                    "Lecture"
+                };
+                items.push(Item::new(label, value, level).with_detail(detail));
             }
             if let Some(acc) = &read.access {
                 let ms = format!("{:.1} ms", acc.avg_ms).replace('.', ",");

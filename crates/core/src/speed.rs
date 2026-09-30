@@ -1,5 +1,6 @@
 //! Test de vitesse rapide, environ une minute par disque :
-//! - lecture de 256 Mio au début, au milieu et à la fin du disque (un disque dur lit environ deux
+//! - lecture de 256 Mio (1 Gio sur un SSD) au début, au milieu et à la fin du disque, après une
+//!   lecture de réveil non comptée (un disque dur lit environ deux
 //!   fois moins vite à la fin : l'intérieur du plateau défile moins vite sous la tête) ;
 //! - temps d'accès : 100 lectures de 4 Kio à des endroits tirés au hasard, ce que l'utilisateur
 //!   ressent quand il ouvre beaucoup de petits fichiers ;
@@ -25,7 +26,13 @@ use crate::rawio::{self, AlignedBuf, ALIGN};
 use crate::surface::BlockReader;
 
 /// Données lues à chaque position du disque.
-const ZONE_BYTES: u64 = 256 << 20;
+/// Données lues à chaque position : sur un SSD, 256 Mio se lisent en moins d'un dixième de
+/// seconde et le moindre à-coup fausse la mesure ; 1 Gio y dure assez pour s'en affranchir.
+const ZONE_BYTES_HDD: u64 = 256 << 20;
+const ZONE_BYTES_SSD: u64 = 1 << 30;
+/// Lecture non chronométrée avant la mesure : réveille un disque en économie d'énergie (un SSD
+/// NVMe en veille met du temps à répondre à la première demande).
+const WARMUP_BYTES: u64 = 64 << 20;
 const HDD_CHUNK: usize = 4 << 20;
 const SSD_CHUNK: usize = 8 << 20;
 /// Lectures simultanées sur un SSD : il n'atteint son débit qu'avec plusieurs demandes en cours.
@@ -145,11 +152,17 @@ pub fn read_test<R: BlockReader>(
     open: impl Fn() -> io::Result<R> + Sync,
     total_bytes: u64,
     ssd: bool,
+    // Quantité totale à lire, répartie sur les trois positions ; `None` : 256 Mio par position
+    // (1 Gio sur un SSD).
+    read_bytes: Option<u64>,
     cancel: &AtomicBool,
     mut on_progress: impl FnMut(&SpeedProgress),
 ) -> io::Result<ReadSpeed> {
     let chunk = if ssd { SSD_CHUNK } else { HDD_CHUNK } as u64;
-    let zone = zone_bytes(total_bytes, chunk).ok_or_else(|| {
+    let default = if ssd { ZONE_BYTES_SSD } else { ZONE_BYTES_HDD };
+    // Jamais moins que la zone par défaut : une petite taille choisie rendrait la mesure fragile.
+    let target = read_bytes.map_or(default, |b| (b / 3).max(default));
+    let zone = zone_bytes(total_bytes, chunk, target).ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidInput,
             "disque trop petit pour le test",
@@ -160,6 +173,9 @@ pub fn read_test<R: BlockReader>(
         (50, align_down(total_bytes / 2 - zone / 2, chunk)),
         (100, align_down(total_bytes - zone, chunk)),
     ];
+    // Réveil du disque : première lecture non comptée.
+    let warmup = align_down(WARMUP_BYTES.min(zone), chunk).max(chunk);
+    read_zone(&mut open()?, 0, warmup, chunk as usize, cancel)?;
     let mut zones = Vec::with_capacity(positions.len());
     for (i, (pct, offset)) in positions.into_iter().enumerate() {
         if cancel.load(Ordering::Relaxed) {
@@ -193,9 +209,9 @@ pub fn read_test<R: BlockReader>(
     Ok(ReadSpeed { zones, access })
 }
 
-/// Zone lue à chaque position : 256 Mio, ou moins sur un petit disque (un quart de sa taille).
-fn zone_bytes(total: u64, chunk: u64) -> Option<u64> {
-    let zone = align_down(ZONE_BYTES.min(total / 4), chunk);
+/// Zone lue à chaque position : `target`, ou moins sur un petit disque (un quart de sa taille).
+fn zone_bytes(total: u64, chunk: u64, target: u64) -> Option<u64> {
+    let zone = align_down(target.min(total / 4), chunk);
     (zone >= chunk).then_some(zone)
 }
 
@@ -650,6 +666,7 @@ mod tests {
                 || Ok(Fake { size }),
                 size,
                 ssd,
+                None,
                 &AtomicBool::new(false),
                 |_| {},
             )
@@ -663,8 +680,12 @@ mod tests {
 
     #[test]
     fn small_disk_uses_smaller_zones_and_tiny_disk_is_refused() {
-        assert_eq!(zone_bytes(64 << 20, 4 << 20), Some(16 << 20));
-        assert_eq!(zone_bytes(8 << 20, 4 << 20), None);
+        assert_eq!(
+            zone_bytes(64 << 20, 4 << 20, ZONE_BYTES_HDD),
+            Some(16 << 20)
+        );
+        assert_eq!(zone_bytes(8 << 20, 4 << 20, ZONE_BYTES_HDD), None);
+        assert_eq!(zone_bytes(1 << 40, 8 << 20, ZONE_BYTES_SSD), Some(1 << 30));
     }
 
     #[test]
@@ -673,6 +694,7 @@ mod tests {
             || Err::<Fake, _>(io::Error::other("illisible")),
             1 << 30,
             false,
+            None,
             &AtomicBool::new(false),
             |_| {},
         );

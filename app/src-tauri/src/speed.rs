@@ -62,6 +62,8 @@ pub fn start_speed_test(
             || rawio::open_device_read(&path),
             total,
             ssd,
+            // Taille choisie : autant de lecture directe que d'écriture.
+            write_gib.map(|_| write_bytes),
             &ctx.cancel,
             |p| ctx.progress(p),
         ) {

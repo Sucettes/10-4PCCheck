@@ -69,8 +69,8 @@ export function SpeedTest({ disk }: { disk: DiskInfo }) {
     });
   };
 
-  // Lecture et accès (~30 s), puis écriture et relecture du fichier au débit typique.
-  const minutes = Math.max(1, Math.round((30 + (2 * size * GIB) / 1e6 / typicalMbps(disk)) / 60));
+  // Lecture directe, écriture puis relecture de la taille choisie au débit typique, plus l'accès.
+  const minutes = Math.max(1, Math.round((15 + (3 * size * GIB) / 1e6 / typicalMbps(disk)) / 60));
   return (
     <section className="panel" aria-label="Vitesse">
       <div className="panel-head">
@@ -130,11 +130,22 @@ export function SpeedSummary({ r }: { r: SpeedResult }) {
   const start = zones[0];
   const where = (pct: number) => (pct === 0 ? "début" : pct === 50 ? "milieu" : "fin");
   const w = r.write;
+  // La relecture (données réelles) fait foi : la lecture directe devient indicative.
+  const hasReadback = !!w?.readback;
   return (
     <div className="speed-summary">
       {scale && <p className="muted small">Repères : {scale.class}.</p>}
       {r.read_error && <p className="text-bad small">{r.read_error}</p>}
+      {start && hasReadback && (
+        <p className="small">
+          Lecture directe : <strong>{nf0.format(start.mbps)} Mo/s</strong>{" "}
+          <span className="muted">
+            (indicative : un disque système occupé par Windows ou une zone jamais écrite la fausse ; la note se fonde sur la relecture)
+          </span>
+        </p>
+      )}
       {start &&
+        !hasReadback &&
         (scale ? (
           <ScaleBar
             label="Lecture directe (début du disque)"

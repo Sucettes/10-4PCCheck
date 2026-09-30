@@ -272,8 +272,8 @@ fn speed_and_age_are_rated_on_the_disk_scale() {
     let rep = build_disk_report(&r, "/dev/sda", vec![]).unwrap();
     let items = &rep.sections[0].items;
     let item = |label: &str| items.iter().find(|i| i.label == label).unwrap();
-    assert_eq!(item("Lecture").level, Level::Ok);
-    assert!(item("Lecture").value.contains("bon"));
+    // Relecture présente : la lecture directe devient indicative.
+    assert_eq!(item("Lecture directe").level, Level::Info);
     // 180 Mo/s en écriture pour un SSD SATA : faible.
     assert_eq!(item("Écriture").level, Level::Warn);
     assert!(item("Âge estimé").value.contains("étiquette : 2019"));
