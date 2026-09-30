@@ -60,10 +60,11 @@ Un débit bridé par la liaison est marqué **« bridé par le port »**, pas «
 
 La fiche technique indique aussi le mode de transfert (UAS moderne, ou ancien mode plus lent sur les petits fichiers) et ce qui freine quand c'est possible de faire mieux : câble, port USB 2 (branche sur un port USB 3, souvent bleu), ou adaptateur.
 
-## Mode de transfert et fonctionnalités
+## Rotation, mode de transfert et fonctionnalités
 
-Dans la **fiche technique** d'un disque :
+Dans la **fiche technique** d'un disque (et en tête du rapport) :
 
+- **Vitesse de rotation** (disques durs) : 7 200 tr/min pour un disque de bureau rapide ; 5 400 ou 5 900 tr/min pour un disque de portable, externe ou d'archivage, plus lent (temps d'accès plus long). « Non rapportée » : le disque ne la déclare pas (modèles d'avant 2009 environ) ou un boîtier USB bloque ces informations.
 - **Mode de transfert** : vitesse du lien en ce moment, et la plus haute que le disque sait négocier. SATA : 1,5, 3,0 ou 6,0 Gb/s. NVMe : génération PCIe et nombre de voies, par exemple « PCIe 4.0 x4 ». Un lien plus lent que ce que sait faire le disque est signalé (port, câble, adaptateur ou emplacement plus lent ; certaines machines baissent aussi le lien au repos pour économiser l'énergie).
 - **Fonctionnalités** (disques SATA) : NCQ, TRIM, S.M.A.R.T., GPL, APM, AAM, DevSleep, cache d'écriture, lecture anticipée, lues dans les données d'identification du disque. Une fonctionnalité prise en charge mais désactivée est indiquée.
 
