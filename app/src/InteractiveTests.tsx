@@ -302,14 +302,24 @@ function WebcamTest({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let stream: MediaStream | null = null;
+    // Fenêtre fermée pendant la demande d'accès : le flux arrive après le nettoyage et doit
+    // être coupé à son arrivée, sinon le voyant de la caméra reste allumé.
+    let closed = false;
     navigator.mediaDevices
       ?.getUserMedia({ video: true })
       .then((s) => {
+        if (closed) {
+          s.getTracks().forEach((t) => t.stop());
+          return;
+        }
         stream = s;
         if (video.current) video.current.srcObject = s;
       })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
-    return () => stream?.getTracks().forEach((t) => t.stop());
+      .catch((e: unknown) => !closed && setError(e instanceof Error ? e.message : String(e)));
+    return () => {
+      closed = true;
+      stream?.getTracks().forEach((t) => t.stop());
+    };
   }, []);
   return (
     <Overlay title="Webcam" onClose={onClose}>
@@ -333,9 +343,14 @@ function MicTest({ onClose }: { onClose: () => void }) {
     let stream: MediaStream | null = null;
     let ctx: AudioContext | null = null;
     let frame = 0;
+    let closed = false; // voir WebcamTest
     navigator.mediaDevices
       ?.getUserMedia({ audio: true })
       .then((s) => {
+        if (closed) {
+          s.getTracks().forEach((t) => t.stop());
+          return;
+        }
         stream = s;
         ctx = new AudioContext();
         const analyser = ctx.createAnalyser();
@@ -353,8 +368,9 @@ function MicTest({ onClose }: { onClose: () => void }) {
         };
         tick();
       })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+      .catch((e: unknown) => !closed && setError(e instanceof Error ? e.message : String(e)));
     return () => {
+      closed = true;
       cancelAnimationFrame(frame);
       stream?.getTracks().forEach((t) => t.stop());
       void ctx?.close();

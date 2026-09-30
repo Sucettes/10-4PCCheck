@@ -12,6 +12,10 @@ import { ReportButton } from "./ReportButton";
 type Mode = "photorec" | "tsk" | "testdisk";
 /** Onglet gardé entre deux passages sur l'écran (TestDisk peut tourner en arrière-plan). */
 let savedMode: Mode = "photorec";
+/** Destination saisie et destination de la récupération lancée : gardées au changement d'écran
+ * (recalculées, elles changeraient d'horodatage et ne désigneraient plus le vrai dossier). */
+let savedDest = "";
+let runningDest = "";
 
 const MODES: { id: Mode; label: string; hint: string }[] = [
   { id: "photorec", label: "PhotoRec (guidé)", hint: "Par signatures : marche après formatage, noms perdus" },
@@ -47,7 +51,12 @@ export function RecoveryPage({ disks }: { disks: Load<DiskEntry[]> }) {
   const [source, setSource] = useState<string | null>(null);
   const [families, setFamilies] = useState<Set<FileFamily>>(new Set(["photos", "documents"]));
   const [status, setStatus] = useState<Load<RecoveryStatus>>({ state: "loading" });
-  const [dest, setDest] = useState<string>("");
+  const [dest, setDestState] = useState<string>(savedDest);
+  const setDest = (update: (d: string) => string) =>
+    setDestState((d) => {
+      savedDest = update(d);
+      return savedDest;
+    });
   const [trim, setTrim] = useState<string | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
   const [job, setJob] = useJob<RecoveryProgress, RecoveryProgress>(JOB);
@@ -95,6 +104,7 @@ export function RecoveryPage({ disks }: { disks: Load<DiskEntry[]> }) {
   const start = () => {
     if (!source) return;
     setStartError(null);
+    runningDest = dest;
     setJob({ running: true, progress: null, result: null });
     invoke("start_recovery", { disk: source, destination: dest, families: [...families], paranoid: false }).catch((e: unknown) => {
       setJob({ running: false, progress: null, result: null });
@@ -170,7 +180,7 @@ export function RecoveryPage({ disks }: { disks: Load<DiskEntry[]> }) {
           <h3>3 · Destination</h3>
           <label className="field">
             <span className="muted small">Dossier où écrire les fichiers retrouvés</span>
-            <input type="text" value={dest} onChange={(e) => setDest(e.target.value)} spellCheck={false} />
+            <input type="text" value={dest} onChange={(e) => setDest(() => e.target.value)} spellCheck={false} />
           </label>
           {!source && <p className="small muted">Choisis d'abord la source (étape 1).</p>}
           {source && destVolume && (
@@ -242,7 +252,13 @@ export function RecoveryPage({ disks }: { disks: Load<DiskEntry[]> }) {
         <section className="panel" aria-label="Fichiers trouvés">
           <div className="panel-head">
             <h3>Derniers fichiers trouvés</h3>
-            <button type="button" className="btn" onClick={() => void invoke("open_folder", { path: dest })}>
+            <button
+              type="button"
+              className="btn"
+              onClick={() =>
+                void invoke("open_folder", { path: runningDest || dest }).catch((e: unknown) => setStartError(errorMessage(e)))
+              }
+            >
               Ouvrir le dossier
             </button>
           </div>

@@ -28,6 +28,7 @@ export const listReports = (): Promise<ReportSummary[]> => invoke<ReportSummary[
 /** Écran « Rapports » : rapports enregistrés dans rapports/ de la clé, du plus récent au plus ancien. */
 export function ReportsPage() {
   const [reports, setReports] = useState<Load<ReportSummary[]>>({ state: "loading" });
+  const [openError, setOpenError] = useState<string | null>(null);
   useEffect(() => {
     listReports()
       .then((value) => setReports({ state: "ok", value }))
@@ -41,10 +42,15 @@ export function ReportsPage() {
           <div className="eyebrow">Dossier rapports de la clé</div>
           <h1>Rapports</h1>
         </div>
-        <button type="button" className="btn" onClick={() => void invoke("open_report_file", { path: null })}>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => void invoke("open_report_file", { path: null }).catch((e: unknown) => setOpenError(errorMessage(e)))}
+        >
           Ouvrir le dossier
         </button>
       </header>
+      {openError && <p className="text-bad small">{openError}</p>}
       {reports.state === "loading" && <p className="muted">Lecture des rapports…</p>}
       {reports.state === "error" && <p className="text-bad">{reports.message}</p>}
       {reports.state === "ok" && reports.value.length === 0 && (
@@ -61,38 +67,43 @@ export function ReportsPage() {
 }
 
 export function ReportTable({ reports }: { reports: ReportSummary[] }) {
+  const [openError, setOpenError] = useState<string | null>(null);
+  const open = (path: string) => void openPath(path).catch((e: unknown) => setOpenError(errorMessage(e)));
   return (
-    <div className="report-list" role="table" aria-label="Rapports enregistrés">
-      {reports.map((r) => {
-        const base = VERDICTS[r.verdict_level];
-        const v = r.subject_kind === "recovery" ? { ...base, label: RECOVERY_LABELS[r.verdict_level] } : base;
-        return (
-          <div className="report-row" role="row" key={r.id}>
-            <span role="cell" className="report-title">
-              {r.title}
-              <span className="muted small"> · {KINDS[r.subject_kind]}</span>
-            </span>
-            <span role="cell" className="muted small">
-              {dateFmt.format(new Date(r.generated_at))}
-            </span>
-            <span role="cell">
-              <span className={`pill ${v.cls}`}>{v.label}</span>
-            </span>
-            <span role="cell" className="report-actions">
-              {r.pdf_path && (
-                <button type="button" className="link-btn" onClick={() => void openPath(r.pdf_path!)}>
-                  PDF
-                </button>
-              )}
-              {r.html_path && (
-                <button type="button" className="link-btn" onClick={() => void openPath(r.html_path!)}>
-                  HTML
-                </button>
-              )}
-            </span>
-          </div>
-        );
-      })}
-    </div>
+    <>
+      {openError && <p className="text-bad small">{openError}</p>}
+      <div className="report-list" role="table" aria-label="Rapports enregistrés">
+        {reports.map((r) => {
+          const base = VERDICTS[r.verdict_level];
+          const v = r.subject_kind === "recovery" ? { ...base, label: RECOVERY_LABELS[r.verdict_level] } : base;
+          return (
+            <div className="report-row" role="row" key={r.id}>
+              <span role="cell" className="report-title">
+                {r.title}
+                <span className="muted small"> · {KINDS[r.subject_kind]}</span>
+              </span>
+              <span role="cell" className="muted small">
+                {dateFmt.format(new Date(r.generated_at))}
+              </span>
+              <span role="cell">
+                <span className={`pill ${v.cls}`}>{v.label}</span>
+              </span>
+              <span role="cell" className="report-actions">
+                {r.pdf_path && (
+                  <button type="button" className="link-btn" onClick={() => open(r.pdf_path!)}>
+                    PDF
+                  </button>
+                )}
+                {r.html_path && (
+                  <button type="button" className="link-btn" onClick={() => open(r.html_path!)}>
+                    HTML
+                  </button>
+                )}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </>
   );
 }

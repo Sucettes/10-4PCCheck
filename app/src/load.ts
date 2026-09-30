@@ -6,5 +6,12 @@ export type Load<T> = { state: "loading" } | { state: "ok"; value: T } | { state
 
 export function errorMessage(e: unknown): string {
   if (isCommandError(e)) return commandErrorMessage(e);
-  return e instanceof Error ? e.message : String(e);
+  if (e instanceof Error) return e.message;
+  if (typeof e === "string") return e;
+  // Erreur structurée non prévue ({ code, detail }) : lisible plutôt que « [object Object] ».
+  try {
+    return JSON.stringify(e);
+  } catch {
+    return String(e);
+  }
 }

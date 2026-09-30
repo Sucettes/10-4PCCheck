@@ -30,20 +30,31 @@ export function useJob<P, R>(id: string | null): [JobState<P, R>, (s: JobState<P
   const [state, setState] = useState<JobState<P, R>>(empty);
 
   useEffect(() => {
+    setState(empty);
     if (id === null) return;
     let alive = true;
-    // Abonnement avant la lecture de l'état : aucun évènement perdu entre les deux.
+    // Un évènement reçu est plus récent que l'instantané lu ensuite : réponse IPC et évènements
+    // arrivent par deux canaux sans ordre garanti, l'instantané ne doit pas écraser un `job-done`.
+    let eventSeen = false;
     const unlisten = Promise.all([
       listen<{ id: string; data: P }>("job-progress", (e) => {
-        if (alive && e.payload.id === id) setState((s) => ({ ...s, running: true, progress: e.payload.data }));
+        if (!alive || e.payload.id !== id) return;
+        eventSeen = true;
+        setState((s) => ({ ...s, running: true, progress: e.payload.data }));
       }),
       listen<{ id: string; result: JobResult<R> }>("job-done", (e) => {
-        if (alive && e.payload.id === id) setState((s) => ({ ...s, running: false, result: e.payload.result }));
+        if (!alive || e.payload.id !== id) return;
+        eventSeen = true;
+        setState((s) => ({ ...s, running: false, result: e.payload.result }));
       }),
     ]);
-    invoke<RawState>("job_state", { id })
+    // Abonnement effectif AVANT la lecture de l'état : aucun évènement perdu entre les deux.
+    unlisten
+      .then(() => invoke<RawState>("job_state", { id }))
       .then((s) => {
-        if (alive) setState({ running: s.running, progress: s.progress as P | null, result: s.result as JobResult<R> | null });
+        if (alive && !eventSeen) {
+          setState({ running: s.running, progress: s.progress as P | null, result: s.result as JobResult<R> | null });
+        }
       })
       .catch(() => {});
     return () => {

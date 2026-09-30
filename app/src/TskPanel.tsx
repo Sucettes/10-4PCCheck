@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useKept } from "./kept";
 import { invoke } from "@tauri-apps/api/core";
 import { formatBytes } from "./format";
 import { cancelJob, isOk, useJob } from "./jobs";
@@ -13,6 +14,12 @@ interface SelectionResult {
 }
 
 const key = (f: DeletedFile) => `${f.inode}|${f.path}`;
+
+type ListState =
+  | { state: "idle" }
+  | { state: "loading" }
+  | { state: "ok"; value: DeletedList }
+  | { state: "error"; message: string };
 
 const JOB = "tsk";
 const SHOWN = 400;
@@ -34,15 +41,18 @@ function join(dir: string, name: string): string {
  */
 export function TskPanel({ status }: { status: RecoveryStatus }) {
   const volumes = status.volumes;
-  const [volume, setVolume] = useState<string>(volumes[0]?.path ?? "");
-  const [list, setList] = useState<{ state: "idle" } | { state: "loading" } | { state: "ok"; value: DeletedList } | { state: "error"; message: string }>({ state: "idle" });
-  const [filter, setFilter] = useState("");
-  const [dest, setDest] = useState(() => join(status.default_destination, `${stamp()}_noms`));
+  // Gardés au changement d'onglet ou d'écran : une copie peut tourner pendant ce temps, et son
+  // suivi (progression, « Arrêter », dossier de destination) ne doit pas disparaître.
+  const [volume, setVolume] = useKept<string>("tsk.volume", () => volumes[0]?.path ?? "");
+  const [list, setList] = useKept<ListState>("tsk.list", () => ({ state: "idle" }));
+  const [filter, setFilter] = useKept("tsk.filter", () => "");
+  const [dest, setDest] = useKept("tsk.dest", () => join(status.default_destination, `${stamp()}_noms`));
   const [startError, setStartError] = useState<string | null>(null);
   const [job, setJob] = useJob<TskProgress, TskProgress>(JOB);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [picking, setPicking] = useState(false);
-  const [picked, setPicked] = useState<SelectionResult | null>(null);
+  const [selected, setSelected] = useKept<Set<string>>("tsk.selected", () => new Set());
+  const [picking, setPicking] = useKept("tsk.picking", () => false);
+  const [picked, setPicked] = useKept<SelectionResult | null>("tsk.picked", () => null);
+  const openFolder = () => void invoke("open_folder", { path: dest }).catch((e: unknown) => setStartError(errorMessage(e)));
 
   const scan = () => {
     setList({ state: "loading" });
@@ -213,7 +223,7 @@ export function TskPanel({ status }: { status: RecoveryStatus }) {
                 )}
               </span>
               <span className="header-actions">
-                <button type="button" className="btn" onClick={() => void invoke("open_folder", { path: dest })}>
+                <button type="button" className="btn" onClick={openFolder}>
                   Ouvrir le dossier
                 </button>
                 <ReportButton command="save_recovery_report" />
@@ -236,7 +246,7 @@ export function TskPanel({ status }: { status: RecoveryStatus }) {
                   )}
                   {!job.running && (
                     <>
-                      <button type="button" className="btn" onClick={() => void invoke("open_folder", { path: dest })}>
+                      <button type="button" className="btn" onClick={openFolder}>
                         Ouvrir le dossier
                       </button>
                       <ReportButton command="save_recovery_report" />

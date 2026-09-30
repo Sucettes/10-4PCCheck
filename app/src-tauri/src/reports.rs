@@ -16,10 +16,15 @@ use crate::cache::Cache;
 use crate::{blocking, reports_dir, AppState, CommandError};
 
 fn smartctl_tool(state: &AppState) -> Vec<ToolVersion> {
-    match state.smartctl.as_ref().ok().and_then(|s| s.version().ok()) {
+    // Lue une fois par session : l'aperçu du rapport est recalculé à chaque case cochée, et
+    // lancer smartctl à chaque fois ralentissait l'écran pour une valeur qui ne change pas.
+    static VERSION: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    let version =
+        VERSION.get_or_init(|| state.smartctl.as_ref().ok().and_then(|s| s.version().ok()));
+    match version {
         Some(v) => vec![ToolVersion {
             name: "smartctl".into(),
-            version: v,
+            version: v.clone(),
         }],
         None => Vec::new(),
     }
@@ -95,6 +100,18 @@ pub fn open_report_file(path: Option<String>) -> Result<(), CommandError> {
     if !is_inside(&target, &dir) {
         return Err(CommandError::Internal(
             "chemin hors du dossier des rapports".into(),
+        ));
+    }
+    // Seulement nos formats : un exécutable ou un raccourci déposé dans rapports/ ne doit pas
+    // pouvoir être lancé par ce bouton.
+    let allowed = target.is_dir()
+        || target
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| ["pdf", "html", "json"].contains(&e.to_ascii_lowercase().as_str()));
+    if !allowed {
+        return Err(CommandError::Internal(
+            "seuls les rapports PDF, HTML et JSON s'ouvrent ici".into(),
         ));
     }
     open_with_system(&target)

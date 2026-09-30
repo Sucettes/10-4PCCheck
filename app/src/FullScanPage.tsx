@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { formatBytes } from "./format";
 import { gpuState, runGpuStress, stopGpuStress, subscribeGpu, type GpuState } from "./gpuStress";
@@ -57,9 +57,61 @@ const RANK: Record<Level, number> = { neutral: 0, info: 1, ok: 2, warn: 3, bad: 
 
 /** État gardé entre deux passages sur l'écran. */
 let savedChecks: Record<string, boolean> = {};
-let savedStep: Step = "idle";
 /** Échantillons du test de charge en cours, gardés si l'écran est quitté puis rouvert. */
 let liveSamples: StressSample[] = [];
+
+/**
+ * État de l'analyse, au niveau du module : l'analyse (une chaîne d'étapes asynchrone) survit au
+ * démontage de l'écran. Gardé dans le composant, il resterait figé sur l'étape du départ quand
+ * on revient, la chaîne mettant à jour l'instance disparue.
+ */
+interface ScanState {
+  step: Step;
+  error: string | null;
+  gpuNote: string | null;
+  inventory: MachineInventory | null;
+}
+let scan: ScanState = { step: "idle", error: null, gpuNote: null, inventory: null };
+const scanListeners = new Set<() => void>();
+function setScan(patch: Partial<ScanState>) {
+  scan = { ...scan, ...patch };
+  scanListeners.forEach((l) => l());
+}
+const scanState = () => scan;
+function subscribeScan(l: () => void) {
+  scanListeners.add(l);
+  return () => {
+    scanListeners.delete(l);
+  };
+}
+
+async function runFullScan(onRefreshDisks: () => Promise<void>) {
+  setScan({ error: null, gpuNote: null });
+  try {
+    setScan({ step: "inventory" });
+    setScan({ inventory: await invoke<MachineInventory>("machine_inventory", { refresh: true }) });
+    setScan({ step: "disks" });
+    await onRefreshDisks();
+    setScan({ step: "ram" });
+    await invoke("start_ram_test");
+    await waitForJob("ram");
+    liveSamples = [];
+    setScan({ step: "cpu" });
+    await invoke("start_cpu_stress", { seconds: CPU_SECONDS });
+    await waitForJob("cpu");
+    setScan({ step: "gpu" });
+    try {
+      const input = await runGpuStress(GPU_SECONDS);
+      await invoke("record_gpu_test", { input });
+    } catch (e) {
+      // Sans WebGL (pilote absent, bureau à distance), le reste de l'analyse reste valable.
+      setScan({ gpuNote: `Test graphique impossible : ${errorMessage(e)}` });
+    }
+    setScan({ step: "done" });
+  } catch (e) {
+    setScan({ error: errorMessage(e), step: "idle" });
+  }
+}
 
 function checklistEntries(checks: Record<string, boolean>): ChecklistEntry[] {
   return CHECKLIST.map((label) => ({ label, checked: !!checks[label], note: null }));
@@ -71,10 +123,8 @@ function interactivePayload() {
 
 /** Écran « Analyse complète » (maquette FullScan.dc.html). */
 export function FullScanPage({ onRefreshDisks }: { onRefreshDisks: () => Promise<void> }) {
-  const [inventory, setInventory] = useState<MachineInventory | null>(null);
+  const { step, error, gpuNote, inventory } = useSyncExternalStore(subscribeScan, scanState);
   const [preview, setPreview] = useState<Report | null>(null);
-  const [step, setStep] = useState<Step>(savedStep);
-  const [error, setError] = useState<string | null>(null);
   const [checks, setChecks] = useState<Record<string, boolean>>(savedChecks);
   const interactive = useResults();
   const [cpu] = useJob<StressSample, StressResult>("cpu");
@@ -100,64 +150,32 @@ export function FullScanPage({ onRefreshDisks }: { onRefreshDisks: () => Promise
   }, [cpu.running, cpu.result]);
   const [ram] = useJob<RamProgress, unknown>("ram");
   const gpu = useSyncExternalStore(subscribeGpu, gpuState);
-  const [gpuNote, setGpuNote] = useState<string | null>(null);
 
-  const refreshPreview = useCallback(() => {
-    invoke<Report>("preview_machine_report", { interactive: interactivePayload(), checklist: checklistEntries(checks) })
-      .then(setPreview)
-      .catch(() => setPreview(null));
-  }, [checks]);
-
+  // Inventaire lu une seule fois (environ 10 s au premier appel, en cache ensuite).
   useEffect(() => {
+    if (scanState().inventory) return;
     invoke<MachineInventory>("machine_inventory", { refresh: false })
-      .then((inv) => {
-        setInventory(inv);
-        refreshPreview();
-      })
-      .catch((e: unknown) => setError(errorMessage(e)));
-  }, [refreshPreview]);
+      .then((inv) => setScan({ inventory: inv }))
+      .catch((e: unknown) => setScan({ error: errorMessage(e) }));
+  }, []);
 
-  // Les tests interactifs changent le verdict : aperçu recalculé.
+  // Aperçu du verdict : un seul effet, recalculé quand une entrée change (cases, tests
+  // interactifs, fin d'étape). Seule la réponse à la dernière demande est affichée.
+  const request = useRef(0);
   useEffect(() => {
-    if (inventory) refreshPreview();
-  }, [interactive.size, inventory, refreshPreview]);
+    if (!inventory) return;
+    const n = ++request.current;
+    invoke<Report>("preview_machine_report", { interactive: interactivePayload(), checklist: checklistEntries(checks) })
+      .then((r) => n === request.current && setPreview(r))
+      .catch(() => n === request.current && setPreview(null));
+  }, [inventory, checks, interactive.size, step]);
 
-  const go = (s: Step) => {
-    savedStep = s;
-    setStep(s);
-  };
+  // Nouveau test de charge : la courbe repart de zéro.
+  useEffect(() => {
+    if (step === "cpu" && liveSamples.length === 0) setSamples([]);
+  }, [step]);
 
-  const run = async () => {
-    setError(null);
-    try {
-      go("inventory");
-      setInventory(await invoke<MachineInventory>("machine_inventory", { refresh: true }));
-      go("disks");
-      await onRefreshDisks();
-      go("ram");
-      await invoke("start_ram_test");
-      await waitForJob("ram");
-      go("cpu");
-      liveSamples = [];
-      setSamples([]);
-      await invoke("start_cpu_stress", { seconds: CPU_SECONDS });
-      await waitForJob("cpu");
-      go("gpu");
-      setGpuNote(null);
-      try {
-        const input = await runGpuStress(GPU_SECONDS);
-        await invoke("record_gpu_test", { input });
-      } catch (e) {
-        // Sans WebGL (pilote absent, bureau à distance), le reste de l'analyse reste valable.
-        setGpuNote(`Test graphique impossible : ${errorMessage(e)}`);
-      }
-      go("done");
-    } catch (e) {
-      setError(errorMessage(e));
-      go("idle");
-    }
-    refreshPreview();
-  };
+  const run = () => void runFullScan(onRefreshDisks);
 
   const running = step !== "idle" && step !== "done";
   const name = inventory ? machineName(inventory) : "";
@@ -183,7 +201,7 @@ export function FullScanPage({ onRefreshDisks }: { onRefreshDisks: () => Promise
           )}
         </div>
         <div className="header-actions">
-          <button type="button" className={preview ? "btn" : "btn btn-primary"} onClick={() => void run()} disabled={running}>
+          <button type="button" className={preview ? "btn" : "btn btn-primary"} onClick={run} disabled={running}>
             {step === "done" ? "Relancer l'analyse" : "Lancer l'analyse"}
             <span className="btn-sub">~9 min</span>
           </button>

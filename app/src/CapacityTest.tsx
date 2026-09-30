@@ -9,6 +9,27 @@ import type { CapacityProgress, CapacityResult, RecoveryStatus, VolumeView } fro
 import type { DiskInfo } from "./types";
 
 const JOB = "capacity";
+/** Volume du test lancé depuis cet écran : un seul test à la fois, pour tous les disques. */
+let runningTarget: string | null = null;
+
+type CapacityError =
+  | { code: "free_space"; detail: { path: string; reason: string } }
+  | { code: "not_enough_space" }
+  | { code: "create_dir"; detail: string };
+
+function capacityErrorMessage(e: unknown): string {
+  const err = e as Partial<CapacityError> | null;
+  switch (err?.code) {
+    case "free_space":
+      return `Espace libre illisible sur ${(err as { detail: { path: string } }).detail.path}.`;
+    case "not_enough_space":
+      return "Pas assez d'espace libre pour un test (au moins 48 Mo).";
+    case "create_dir":
+      return `Création du dossier de test impossible : ${(err as { detail: string }).detail}. Volume protégé en écriture ?`;
+    default:
+      return errorMessage(e);
+  }
+}
 const nf0 = new Intl.NumberFormat("fr-CA", { maximumFractionDigits: 0 });
 
 function verdictText(r: CapacityResult): { level: "ok" | "bad" | "info"; text: string } {
@@ -21,6 +42,12 @@ function verdictText(r: CapacityResult): { level: "ok" | "bad" | "info"; text: s
         text: `Fausse capacité : seuls ${formatBytes(r.verdict.real_bytes)} environ sont réels. Au-delà, les données écrasent le début de la mémoire.`,
       };
     case "damaged":
+      if (r.corrupted_bytes + r.overwritten_bytes === 0 && r.write_error) {
+        return {
+          level: "bad",
+          text: `Écriture refusée avant la fin de l'espace annoncé libre (${formatBytes(r.written_bytes)} écrits) : mémoire défectueuse ou fausse capacité.`,
+        };
+      }
       return {
         level: "bad",
         text: `Mémoire abîmée : ${formatBytes(r.corrupted_bytes + r.overwritten_bytes)} relus avec des erreurs sur ${formatBytes(r.verified_bytes)}.`,
@@ -50,6 +77,7 @@ export function CapacityTest({ disk }: { disk: DiskInfo }) {
   const start = () => {
     if (!target) return;
     setStartError(null);
+    runningTarget = target;
     setJob({ running: true, progress: null, result: null });
     invoke("start_capacity_test", { path: target }).catch((e: unknown) => {
       setJob({ running: false, progress: null, result: null });
@@ -57,6 +85,10 @@ export function CapacityTest({ disk }: { disk: DiskInfo }) {
     });
   };
 
+  // Le test (identifiant unique) peut porter sur le volume d'un autre disque.
+  const mine = (path: string | null) => path !== null && volumes.some((v) => v.path === path);
+  const busyElsewhere = job.running && runningTarget !== null && !mine(runningTarget);
+  const resultHere = !job.running && job.result && (!isOk(job.result) || mine(job.result.ok.target)) ? job.result : null;
   const p = job.progress;
   const pct = p && p.total_bytes > 0 ? (p.done_bytes / p.total_bytes) * 100 : 0;
 
@@ -87,7 +119,8 @@ export function CapacityTest({ disk }: { disk: DiskInfo }) {
         </p>
       )}
       {startError && <p className="text-bad small">{startError}</p>}
-      {job.running && (
+      {busyElsewhere && <p className="muted small">Un test de capacité est en cours sur {runningTarget} (autre disque).</p>}
+      {job.running && !busyElsewhere && (
         <div className="test-progress" role="status">
           <div className="test-progress-head">
             <span>{p ? (p.phase === "write" ? "Écriture des blocs signés" : "Relecture et vérification") : "Démarrage…"}</span>
@@ -101,8 +134,8 @@ export function CapacityTest({ disk }: { disk: DiskInfo }) {
           </button>
         </div>
       )}
-      {!job.running && job.result && !isOk(job.result) && <p className="text-bad small">{errorMessage(job.result.error)}</p>}
-      {!job.running && isOk(job.result) && <CapacitySummary r={job.result.ok} />}
+      {resultHere && !isOk(resultHere) && <p className="text-bad small">{capacityErrorMessage(resultHere.error)}</p>}
+      {resultHere && isOk(resultHere) && <CapacitySummary r={resultHere.ok} />}
     </section>
   );
 }

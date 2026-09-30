@@ -23,7 +23,19 @@ const notify = () => listeners.forEach((l) => l());
 
 // Les sorties peuvent arriver avant que l'identifiant de session soit connu : on les garde.
 const pending: { id: number; data: string }[] = [];
+const pendingExit = new Map<number, number | null>();
 let subscribed: Promise<unknown> | null = null;
+
+function markExited(code: number | null): void {
+  if (!session) return;
+  session.exited = true;
+      session.term.write(`
+
+[90m[TestDisk terminé${code !== null ? `, code ${code}` : ""}][0m
+
+`);
+  notify();
+}
 
 /** Abonnement aux évènements du terminal, fait une seule fois, au premier lancement. */
 function subscribe(): Promise<unknown> {
@@ -33,12 +45,9 @@ function subscribe(): Promise<unknown> {
       else pending.push(e.payload);
     }),
     listen<{ id: number; code: number | null }>("terminal-exit", (e) => {
-      if (session?.id !== e.payload.id) return;
-      session.exited = true;
-      session.term.write(`
-[90m[TestDisk terminé${e.payload.code !== null ? `, code ${e.payload.code}` : ""}][0m
-`);
-      notify();
+      if (session?.id === e.payload.id) markExited(e.payload.code);
+      // Outil terminé avant que l'identifiant soit connu (DLL manquante...) : fin gardée aussi.
+      else pendingExit.set(e.payload.id, e.payload.code);
     }),
   ]);
   return subscribed;
@@ -71,6 +80,10 @@ async function launch(container: HTMLDivElement): Promise<void> {
   const id = await invoke<number>("terminal_open", { tool: "testdisk", cols: term.cols, rows: term.rows });
   session.id = id;
   for (const p of pending.splice(0)) if (p.id === id) term.write(p.data);
+  if (pendingExit.has(id)) {
+    markExited(pendingExit.get(id) ?? null);
+    pendingExit.delete(id);
+  }
   // Clavier → TestDisk. xterm.js répond aussi seul aux questions de ConPTY (position du curseur).
   term.onData((d) => void invoke("terminal_write", { id, data: d }).catch(() => {}));
   term.onResize(({ cols, rows }) => void invoke("terminal_resize", { id, cols, rows }).catch(() => {}));
@@ -115,6 +128,8 @@ export function TestDiskTerminal({ available }: { available: boolean }) {
 
   const open = async () => {
     setError(null);
+    // Relance : l'ancien émulateur est libéré d'abord (sinon deux terminaux s'empilent).
+    if (session) close();
     try {
       await start();
       if (container.current) await launch(container.current);
@@ -124,7 +139,8 @@ export function TestDiskTerminal({ available }: { available: boolean }) {
     }
   };
 
-  const running = session !== null && session.id !== null && !session.exited;
+  // Lancement en cours compris (identifiant pas encore reçu) : pas de second clic possible.
+  const running = session !== null && !session.exited;
 
   return (
     <section className="panel" aria-label="TestDisk">

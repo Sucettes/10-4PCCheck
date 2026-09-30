@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { cancelJob, isOk, useJob } from "./jobs";
-import { commandErrorMessage, formatBytes } from "./format";
+import { formatBytes } from "./format";
+import { errorMessage } from "./load";
 import { Hint } from "./Hint";
 import { surfaceHint } from "./hints";
-import type { CommandError, DiskInfo } from "./types";
+import type { DiskInfo } from "./types";
 
 interface Progress {
   done_bytes: number;
@@ -71,7 +72,7 @@ export function SurfaceScan({ disk }: { disk: DiskInfo }) {
     setJob({ running: true, progress: null, result: null });
     invoke("start_surface_scan", { device: disk.device, totalBytes: capacity }).catch((e: unknown) => {
       setJob({ running: false, progress: null, result: null });
-      setStartError(commandErrorMessage(e as CommandError));
+      setStartError(errorMessage(e));
     });
   };
 

@@ -11,7 +11,7 @@ export interface SavedReport {
 
 export const openPath = (path: string): Promise<void> => invoke<void>("open_report_file", { path });
 
-type State = { s: "idle" } | { s: "saving" } | { s: "done"; saved: SavedReport } | { s: "error"; message: string };
+type State = { s: "idle" } | { s: "saving" } | { s: "done"; saved: SavedReport; openError?: string } | { s: "error"; message: string };
 
 /**
  * Génère et enregistre le rapport de l'écran courant (JSON + HTML + PDF dans rapports/ de la clé),
@@ -28,14 +28,21 @@ export function ReportButton({ command, args = {} }: { command: string; args?: R
   };
 
   if (state.s === "done") {
+    const open = (path: string) =>
+      void openPath(path).catch((e: unknown) => setState({ ...state, openError: errorMessage(e) }));
     return (
       <div className="report-done" role="status">
+        {state.openError && <span className="text-bad small">{state.openError}</span>}
         <span className="status status-good">Rapport enregistré</span>
-        <button type="button" className="btn" onClick={() => void openPath(state.saved.pdf)}>
+        <button type="button" className="btn" onClick={() => open(state.saved.pdf)}>
           Ouvrir le PDF
         </button>
-        <button type="button" className="btn" onClick={() => void openPath(state.saved.html)}>
+        <button type="button" className="btn" onClick={() => open(state.saved.html)}>
           HTML
+        </button>
+        {/* Nouveaux résultats depuis (scan de surface, tests) : rapport à jour, dans un nouveau fichier. */}
+        <button type="button" className="link-btn" onClick={save} title="Nouveau rapport avec les derniers résultats">
+          Régénérer
         </button>
       </div>
     );
