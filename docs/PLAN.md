@@ -322,6 +322,8 @@ Claude vérifie tout ce qui peut l'être sans matériel réel. Le propriétaire 
 - [x] PhotoRec lancé en mode `/cmd` (console sans fenêtre sous Windows, PDCurses exige une vraie console). Binaire à placer dans tools/testdisk/ (`tools/fetch-tools-windows.ps1`).
 - [x] Écran de paramètres (source, types, destination obligatoirement sur un autre disque), progression et fichiers trouvés.
 - [x] Avertissement TRIM quand la source est un SSD.
+- [x] Deuxième moteur : The Sleuth Kit (`fls` + `tsk_recover`), récupération par le système de fichiers avec **noms et dossiers conservés** (NTFS, FAT, exFAT, ext). Validé sur une image FAT16 générée.
+- [x] TestDisk dans un terminal intégré (pseudo-terminal ConPTY via `portable-pty`, affichage xterm.js), pour les partitions perdues et la restauration manuelle ; fenêtre de console séparée en secours. Validé : TestDisk 7.2 s'affiche et répond au clavier dans le pseudo-terminal.
 
 ### Phase 6 · Clé bootable
 - [x] Procédure Ventoy + outil sur la partition de données : `docs/CLE-BOOTABLE.md` ; `tools/assemble-usb.ps1` prépare le dossier. L'installation de Ventoy efface la clé : faite à la main.
