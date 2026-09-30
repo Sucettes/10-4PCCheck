@@ -141,35 +141,33 @@ pub struct Utf8Stream {
 }
 
 impl Utf8Stream {
+    /// Un seul passage sur le tampon (morceaux valides / invalides), puis un seul décalage :
+    /// linéaire même sur une sortie pleine d'octets non UTF-8 (noms Latin-1 sous Linux).
     pub fn push(&mut self, bytes: &[u8]) -> String {
         self.carry.extend_from_slice(bytes);
-        let mut out = String::new();
-        loop {
-            match std::str::from_utf8(&self.carry) {
-                Ok(s) => {
-                    out.push_str(s);
-                    self.carry.clear();
-                    return out;
-                }
-                Err(e) => {
-                    let valid = e.valid_up_to();
-                    // SAFETY non requis : from_utf8 vient de valider cette partie.
-                    out.push_str(std::str::from_utf8(&self.carry[..valid]).unwrap_or_default());
-                    match e.error_len() {
-                        // Caractère incomplet en fin de tampon : on le garde pour la suite.
-                        None => {
-                            self.carry.drain(..valid);
-                            return out;
-                        }
-                        // Octets invalides : remplacés, puis on continue.
-                        Some(n) => {
-                            out.push('\u{FFFD}');
-                            self.carry.drain(..valid + n);
-                        }
-                    }
-                }
+        let mut out = String::with_capacity(self.carry.len());
+        let mut consumed = 0;
+        for chunk in self.carry.utf8_chunks() {
+            out.push_str(chunk.valid());
+            consumed += chunk.valid().len();
+            let invalid = chunk.invalid();
+            if invalid.is_empty() {
+                continue;
             }
+            // Caractère incomplet en fin de tampon : gardé pour la suite.
+            let at_end = consumed + invalid.len() == self.carry.len();
+            let incomplete = std::str::from_utf8(invalid)
+                .err()
+                .is_some_and(|e| e.error_len().is_none());
+            if at_end && incomplete {
+                break;
+            }
+            // Octets invalides : remplacés.
+            out.push('\u{FFFD}');
+            consumed += invalid.len();
         }
+        self.carry.drain(..consumed);
+        out
     }
 }
 
