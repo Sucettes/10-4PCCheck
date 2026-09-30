@@ -26,7 +26,7 @@ Le wiki GitHub est publié automatiquement depuis `docs/wiki/` à chaque mise à
 
 | Dossier | Rôle |
 |---|---|
-| `crates/core` | smartctl (JSON), attributs SMART, cohérence, lectures sans cache (`rawio`), scan de surface, capacité réelle, vitesse (`speed`), âge (`age`), liaison USB (`usb`), processus (`process`) |
+| `crates/core` | smartctl (JSON), attributs SMART, cohérence, fonctionnalités ATA (`identify`), lectures sans cache (`rawio`), scan de surface, capacité réelle, vitesse (`speed`), âge (`age`), liaisons USB (`usb`) et PCIe (`pcie`), arbre des périphériques Windows (`devtree`), processus (`process`) |
 | `crates/inventory` | Inventaire (WMI Windows, sysfs Linux), charge CPU, test RAM, capteurs GPU |
 | `crates/android` | adb : appareils, collecte, évaluation, liste de vérifications |
 | `crates/recovery` | PhotoRec, The Sleuth Kit (fls, tsk_recover, icat), TestDisk en pseudo-terminal, destination vérifiée sur un autre disque |

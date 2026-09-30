@@ -491,3 +491,8 @@ kbd { padding: 0 4px; border: 1px solid var(--border-strong); border-radius: 4px
 .chart-read { fill: none; stroke: var(--good-dot); stroke-width: 2; }
 .chart-band { stroke: var(--text-2); stroke-width: 1; stroke-dasharray: 4 4; opacity: 0.5; }
 .legend-read { color: var(--good-text); font-weight: 600; }
+
+/* Fonctionnalités d'un disque (fiche technique) */
+.feature-list { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+.feature { padding: 1px 7px; border-radius: 10px; background: var(--good-bg); color: var(--good-text); font-size: 12px; }
+.feature-off { background: #eef0f3; color: var(--text-2); }

@@ -73,8 +73,11 @@ export interface DiskInfo {
   standard: string | null;
   sata_version: string | null;
   link_speed: string | null;
+  link_speed_max: string | null;
   form_factor: string | null;
   trim_supported: boolean | null;
+  /** Fonctionnalités ATA (NCQ, AAM, APM...) ; null : non lues (NVMe, pont USB muet). */
+  features: AtaFeature[] | null;
   bytes_written: number | null;
   bytes_read: number | null;
   smart_available: boolean | null;
@@ -122,4 +125,12 @@ export interface DiskEntry {
   error: SmartctlError | null;
   /** Volumes portés par le disque (lettres sous Windows), pour distinguer deux disques identiques. */
   volumes?: { path: string; label: string }[];
+}
+
+/** Fonctionnalité ATA lue dans les données d'identification (crates/core/src/identify.rs). */
+export interface AtaFeature {
+  key: string;
+  label: string;
+  supported: boolean;
+  enabled: boolean | null;
 }

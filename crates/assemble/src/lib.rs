@@ -523,6 +523,22 @@ fn speed_items(sp: &SpeedResult) -> Vec<Item> {
             .push(Item::new("Écriture", "Non mesurée", Level::Neutral).with_detail(why.clone())),
         (None, None) => {}
     }
+    if let Some(link) = &sp.pcie {
+        // Information sur l'emplacement ; un lien plus lent que le disque est à surveiller.
+        let level = if link.is_degraded() {
+            Level::Warn
+        } else {
+            Level::Info
+        };
+        items.push(
+            Item::new(
+                "Liaison PCIe",
+                pccheck_core::pcie::PcieLink::label(link.current_gen, link.current_lanes),
+                level,
+            )
+            .with_detail(link.describe()),
+        );
+    }
     if let Some(link) = &sp.usb {
         // Information sur le branchement, pas un défaut du disque : niveau Info.
         items.push(
@@ -557,6 +573,31 @@ fn disk_details(d: &DiskInfo) -> Vec<Detail> {
     }
     if let Some(s) = &d.standard {
         v.push(Detail::new("Norme", s.clone()));
+    }
+    if let Some(now) = &d.link_speed {
+        let text = match &d.link_speed_max {
+            Some(max) if max != now => format!("{now} (maximum du disque : {max})"),
+            _ => now.clone(),
+        };
+        v.push(Detail::new("Mode de transfert", text));
+    }
+    if let Some(features) = &d.features {
+        let list = features
+            .iter()
+            .filter(|f| f.supported)
+            .map(|f| match f.enabled {
+                Some(false) => format!("{} (désactivé)", f.label),
+                _ => f.label.to_string(),
+            })
+            .collect::<Vec<_>>();
+        v.push(Detail::new(
+            "Fonctionnalités",
+            if list.is_empty() {
+                "Aucune déclarée".to_string()
+            } else {
+                list.join(", ")
+            },
+        ));
     }
     v
 }
