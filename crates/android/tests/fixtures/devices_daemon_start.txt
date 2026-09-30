@@ -1,0 +1,5 @@
+* daemon not running; starting now at tcp:5037
+* daemon started successfully
+List of devices attached
+2A000000XX000          device usb:2-1 product:panther model:Pixel_7 device:panther transport_id:1
+

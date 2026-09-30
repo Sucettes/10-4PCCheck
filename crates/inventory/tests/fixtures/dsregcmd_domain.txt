@@ -1,0 +1,20 @@
++----------------------------------------------------------------------+
+| Device State                                                         |
++----------------------------------------------------------------------+
+
+             AzureAdJoined : NO
+          EnterpriseJoined : NO
+              DomainJoined : YES
+                DomainName : EXEMPLE
+           Virtual Desktop : NOT SET
+               Device Name : pc-exemple-03.exemple.local
+
++----------------------------------------------------------------------+
+| User State                                                           |
++----------------------------------------------------------------------+
+
+                    NgcSet : NO
+           WorkplaceJoined : NO
+             WamDefaultSet : NO
+
+For more information, please visit https://www.microsoft.com/aadjerrors

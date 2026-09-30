@@ -1,0 +1,278 @@
+//! Lancement d'outils externes (smartctl, adb, dsregcmd...) avec délai maximal et sortie capturée.
+//! Jamais de shell : le programme et ses arguments sont passés séparément.
+
+use std::io::Read;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::sync::{mpsc, Arc, Mutex};
+use std::thread;
+use std::time::{Duration, Instant};
+
+use serde::Serialize;
+use thiserror::Error;
+
+#[derive(Debug, Clone, Error, Serialize, PartialEq, Eq)]
+#[serde(tag = "code", content = "detail", rename_all = "snake_case")]
+pub enum ProcessError {
+    #[error("{name} introuvable (cherché dans : {})", display_paths(searched))]
+    NotFound {
+        name: String,
+        searched: Vec<PathBuf>,
+    },
+    #[error("impossible de lancer {path:?} : {reason}")]
+    Spawn { path: PathBuf, reason: String },
+    #[error("{path:?} n'a pas répondu en {seconds} s ({args})")]
+    Timeout {
+        path: PathBuf,
+        seconds: u64,
+        args: String,
+    },
+}
+
+/// Chemins lisibles pour un message : sans le préfixe `\\?\` de Windows (chemins « verbatim »,
+/// renvoyés par exemple pour le dossier de ressources de Tauri), sans doublon, séparés par des
+/// virgules.
+pub fn display_paths(paths: &[PathBuf]) -> String {
+    let mut seen: Vec<String> = Vec::new();
+    for p in paths {
+        let s = p.display().to_string();
+        let s = s.strip_prefix(r"\\?\").map(str::to_string).unwrap_or(s);
+        if !seen.contains(&s) {
+            seen.push(s);
+        }
+    }
+    seen.join(", ")
+}
+
+/// Sortie d'un programme terminé. Le code de sortie n'est pas une erreur ici : certains outils
+/// (smartctl) s'en servent comme masque d'informations.
+#[derive(Debug, Clone)]
+pub struct ProcessOutput {
+    pub stdout: String,
+    /// `None` si le processus a été tué par un signal.
+    pub code: Option<i32>,
+}
+
+/// Cherche `file_name` : d'abord le chemin donné par la variable `env_var` s'il existe, puis
+/// chaque dossier, dans l'ordre. Pas de repli sur le PATH : on veut la version embarquée sur la clé.
+pub fn locate(env_var: &str, dirs: &[PathBuf], file_name: &str) -> Result<PathBuf, ProcessError> {
+    locate_with(
+        std::env::var_os(env_var).map(PathBuf::from),
+        dirs,
+        file_name,
+    )
+}
+
+pub(crate) fn locate_with(
+    env: Option<PathBuf>,
+    dirs: &[PathBuf],
+    file_name: &str,
+) -> Result<PathBuf, ProcessError> {
+    let mut searched = Vec::new();
+    for candidate in env
+        .into_iter()
+        .chain(dirs.iter().map(|d| d.join(file_name)))
+    {
+        if candidate.is_file() {
+            return Ok(candidate);
+        }
+        searched.push(candidate);
+    }
+    Err(ProcessError::NotFound {
+        name: file_name.to_string(),
+        searched,
+    })
+}
+
+/// Attente de la fin du tuyau de sortie, une fois le programme terminé.
+const READ_GRACE: Duration = Duration::from_secs(2);
+
+/// Lance `path args` et attend sa fin, au plus `timeout`. La sortie d'erreur est ignorée.
+pub fn run(path: &Path, args: &[&str], timeout: Duration) -> Result<ProcessOutput, ProcessError> {
+    let mut cmd = Command::new(path);
+    cmd.args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+    hide_console(&mut cmd);
+    let spawn_err = |reason: String| ProcessError::Spawn {
+        path: path.to_path_buf(),
+        reason,
+    };
+    let mut child = cmd.spawn().map_err(|e| spawn_err(e.to_string()))?;
+
+    // Lecture dans un fil séparé : un tuyau plein bloquerait le programme avant sa fin. Les
+    // octets vont dans un tampon partagé, lisible même si la fin du tuyau n'arrive jamais.
+    let mut stdout = child.stdout.take().expect("stdout configuré en pipe");
+    let collected = Arc::new(Mutex::new(Vec::new()));
+    let (done_tx, done_rx) = mpsc::channel();
+    let sink = Arc::clone(&collected);
+    thread::spawn(move || {
+        let mut chunk = [0u8; 8192];
+        let result = loop {
+            match stdout.read(&mut chunk) {
+                Ok(0) => break Ok(()),
+                Ok(n) => sink
+                    .lock()
+                    .unwrap_or_else(|p| p.into_inner())
+                    .extend_from_slice(&chunk[..n]),
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(e) => break Err(e),
+            }
+        };
+        let _ = done_tx.send(result);
+    });
+
+    let deadline = Instant::now() + timeout;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if Instant::now() >= deadline => {
+                // Échec du kill ignoré à dessein : le processus peut s'être terminé entre-temps.
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(ProcessError::Timeout {
+                    path: path.to_path_buf(),
+                    seconds: timeout.as_secs(),
+                    args: args.join(" "),
+                });
+            }
+            Ok(None) => thread::sleep(Duration::from_millis(20)),
+            Err(e) => return Err(spawn_err(e.to_string())),
+        }
+    };
+
+    // Un petit-enfant qui a hérité du tuyau (le serveur que `adb` démarre en arrière-plan) le
+    // garde ouvert : la fin de lecture n'arrive alors jamais. Le programme est fini, sa sortie
+    // est écrite ; on n'attend la fin du tuyau qu'un court instant.
+    if let Ok(Err(e)) = done_rx.recv_timeout(READ_GRACE) {
+        return Err(spawn_err(e.to_string()));
+    }
+    let bytes = std::mem::take(&mut *collected.lock().unwrap_or_else(|p| p.into_inner()));
+    Ok(ProcessOutput {
+        // Sortie non UTF-8 (page de code OEM de certains outils Windows) : caractères remplacés.
+        stdout: String::from_utf8_lossy(&bytes).into_owned(),
+        code: status.code(),
+    })
+}
+
+/// Windows : rattache l'application à un « job » qui arrête tous ses processus enfants quand
+/// elle se termine, même après un plantage ou un arrêt forcé : PhotoRec, icat, fls et les
+/// consoles ne continuent jamais seuls à lire un disque. Les enfants héritent du job à leur
+/// création ; un programme ouvert pour l'utilisateur s'en détache avec `CREATE_BREAKAWAY_FROM_JOB`
+/// (voir `detach_from_job`). Sans effet ailleurs (Linux : les tâches sont annulées à la
+/// fermeture ; `PR_SET_PDEATHSIG` suit le fil qui a lancé l'enfant, pas le processus, et
+/// tuerait les outils lancés depuis un fil de travail éphémère).
+pub fn kill_children_on_exit() {
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::Foundation::CloseHandle;
+        use windows_sys::Win32::System::JobObjects::{
+            AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
+            SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+            JOB_OBJECT_LIMIT_BREAKAWAY_OK, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+        };
+        use windows_sys::Win32::System::Threading::GetCurrentProcess;
+        // SAFETY : appels Win32 avec des pointeurs vers des variables locales ; la poignée du
+        // job n'est volontairement jamais fermée : c'est sa fermeture par le système, à la fin
+        // du processus, qui arrête les enfants.
+        unsafe {
+            let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+            if job.is_null() {
+                return;
+            }
+            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+            info.BasicLimitInformation.LimitFlags =
+                JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_BREAKAWAY_OK;
+            let ok = SetInformationJobObject(
+                job,
+                JobObjectExtendedLimitInformation,
+                (&info as *const JOBOBJECT_EXTENDED_LIMIT_INFORMATION).cast(),
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            );
+            if ok == 0 || AssignProcessToJobObject(job, GetCurrentProcess()) == 0 {
+                CloseHandle(job);
+            }
+        }
+    }
+}
+
+/// Programme ouvert pour l'utilisateur (explorateur, lecteur PDF) : hors du job de
+/// `kill_children_on_exit`, il reste ouvert après la fermeture de l'application.
+pub fn detach_from_job(cmd: &mut Command) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
+        cmd.creation_flags(CREATE_BREAKAWAY_FROM_JOB);
+    }
+    #[cfg(not(windows))]
+    let _ = cmd;
+}
+
+/// Pas de fenêtre de console qui clignote sous Windows quand l'app lance un outil.
+pub fn hide_console(cmd: &mut Command) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    #[cfg(not(windows))]
+    let _ = cmd;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn locate_reports_every_searched_path() {
+        let dirs = vec![
+            PathBuf::from("/inexistant/a"),
+            PathBuf::from("/inexistant/b"),
+        ];
+        match locate_with(None, &dirs, "outil") {
+            Err(ProcessError::NotFound { searched, name }) => {
+                assert_eq!(searched.len(), 2);
+                assert_eq!(name, "outil");
+            }
+            other => panic!("attendu NotFound, obtenu {other:?}"),
+        }
+    }
+
+    #[test]
+    fn display_paths_drops_verbatim_duplicates() {
+        let paths = vec![
+            PathBuf::from(r"D:\cle\tools\adb.exe"),
+            PathBuf::from(r"\\?\D:\cle\tools\adb.exe"),
+            PathBuf::from(r"D:\cle\tools\testdisk\adb.exe"),
+        ];
+        assert_eq!(
+            display_paths(&paths),
+            r"D:\cle\tools\adb.exe, D:\cle\tools\testdisk\adb.exe"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn run_times_out_and_kills_process() {
+        let start = Instant::now();
+        let r = run(Path::new("/bin/sleep"), &["5"], Duration::from_millis(300));
+        assert!(matches!(r, Err(ProcessError::Timeout { .. })));
+        assert!(start.elapsed() < Duration::from_secs(3));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn run_captures_stdout_and_exit_code() {
+        let out = run(
+            Path::new("C:\\Windows\\System32\\cmd.exe"),
+            &["/C", "echo bonjour & exit 3"],
+            Duration::from_secs(10),
+        )
+        .unwrap();
+        assert!(out.stdout.contains("bonjour"));
+        assert_eq!(out.code, Some(3));
+    }
+}

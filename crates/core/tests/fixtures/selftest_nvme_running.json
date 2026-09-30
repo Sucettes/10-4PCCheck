@@ -1,0 +1,14 @@
+{
+  "json_format_version": [1, 0],
+  "smartctl": { "version": [7, 5], "exit_status": 0 },
+  "device": { "name": "/dev/nvme0", "info_name": "/dev/nvme0", "type": "nvme", "protocol": "NVMe" },
+  "nvme_optional_admin_commands": { "value": 23, "security_send_receive": true, "format_nvm": true, "firmware_download": true, "self_test": true },
+  "nvme_self_test_log": {
+    "nsid": -1,
+    "current_self_test_operation": { "value": 2, "string": "Extended self-test in progress" },
+    "current_self_test_completion_percent": 35,
+    "table": [
+      { "self_test_code": { "value": 1, "string": "Short" }, "self_test_result": { "value": 0, "string": "Completed without error" }, "power_on_hours": 2140 }
+    ]
+  }
+}

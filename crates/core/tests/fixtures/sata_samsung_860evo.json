@@ -1,0 +1,43 @@
+{
+  "json_format_version": [1, 0],
+  "smartctl": { "version": [7, 5], "exit_status": 0 },
+  "device": { "name": "/dev/sda", "info_name": "/dev/sda [SAT]", "type": "sat", "protocol": "ATA" },
+  "model_name": "Samsung SSD 860 EVO 500GB",
+  "serial_number": "S4XBNF0N30XXXXX",
+  "firmware_version": "RVT04B6Q",
+  "user_capacity": { "blocks": 976773168, "bytes": 500107862016 },
+  "rotation_rate": 0,
+  "form_factor": { "ata_value": 3, "name": "2.5 inches" },
+  "trim": { "supported": true, "deterministic": true, "zeroed": false },
+  "ata_version": { "string": "ACS-4 T13/BSR INCITS 529 revision 5", "major_value": 4092, "minor_value": 94 },
+  "sata_version": { "string": "SATA 3.2", "value": 255 },
+  "interface_speed": {
+    "max": { "sata_value": 14, "string": "6.0 Gb/s", "units_per_second": 60, "bits_per_unit": 100000000 },
+    "current": { "sata_value": 3, "string": "6.0 Gb/s", "units_per_second": 60, "bits_per_unit": 100000000 }
+  },
+  "logical_block_size": 512,
+  "smart_support": { "available": true, "enabled": true },
+  "smart_status": { "passed": true },
+  "ata_smart_attributes": {
+    "revision": 1,
+    "table": [
+      { "id": 5, "name": "Reallocated_Sector_Ct", "value": 100, "worst": 100, "thresh": 10, "when_failed": "", "flags": { "value": 51, "prefailure": true }, "raw": { "value": 0, "string": "0" } },
+      { "id": 9, "name": "Power_On_Hours", "value": 99, "worst": 99, "thresh": 0, "when_failed": "", "flags": { "value": 50, "prefailure": false }, "raw": { "value": 3864, "string": "3864" } },
+      { "id": 12, "name": "Power_Cycle_Count", "value": 99, "worst": 99, "thresh": 0, "when_failed": "", "flags": { "value": 50, "prefailure": false }, "raw": { "value": 8, "string": "8" } },
+      { "id": 177, "name": "Wear_Leveling_Count", "value": 97, "worst": 97, "thresh": 0, "when_failed": "", "flags": { "value": 19, "prefailure": true }, "raw": { "value": 38, "string": "38" } },
+      { "id": 179, "name": "Used_Rsvd_Blk_Cnt_Tot", "value": 100, "worst": 100, "thresh": 10, "when_failed": "", "flags": { "value": 19, "prefailure": true }, "raw": { "value": 0, "string": "0" } },
+      { "id": 181, "name": "Program_Fail_Cnt_Total", "value": 100, "worst": 100, "thresh": 10, "when_failed": "", "flags": { "value": 50, "prefailure": false }, "raw": { "value": 0, "string": "0" } },
+      { "id": 182, "name": "Erase_Fail_Count_Total", "value": 100, "worst": 100, "thresh": 10, "when_failed": "", "flags": { "value": 50, "prefailure": false }, "raw": { "value": 0, "string": "0" } },
+      { "id": 183, "name": "Runtime_Bad_Block", "value": 100, "worst": 100, "thresh": 10, "when_failed": "", "flags": { "value": 19, "prefailure": true }, "raw": { "value": 0, "string": "0" } },
+      { "id": 187, "name": "Uncorrectable_Error_Cnt", "value": 100, "worst": 100, "thresh": 0, "when_failed": "", "flags": { "value": 50, "prefailure": false }, "raw": { "value": 0, "string": "0" } },
+      { "id": 190, "name": "Airflow_Temperature_Cel", "value": 46, "worst": 39, "thresh": 0, "when_failed": "", "flags": { "value": 50, "prefailure": false }, "raw": { "value": 54, "string": "54" } },
+      { "id": 195, "name": "ECC_Error_Rate", "value": 200, "worst": 200, "thresh": 0, "when_failed": "", "flags": { "value": 26, "prefailure": false }, "raw": { "value": 0, "string": "0" } },
+      { "id": 199, "name": "CRC_Error_Count", "value": 100, "worst": 100, "thresh": 0, "when_failed": "", "flags": { "value": 62, "prefailure": false }, "raw": { "value": 0, "string": "0" } },
+      { "id": 235, "name": "POR_Recovery_Count", "value": 99, "worst": 99, "thresh": 0, "when_failed": "", "flags": { "value": 50, "prefailure": false }, "raw": { "value": 1, "string": "1" } },
+      { "id": 241, "name": "Total_LBAs_Written", "value": 99, "worst": 99, "thresh": 0, "when_failed": "", "flags": { "value": 50, "prefailure": false }, "raw": { "value": 13994098713, "string": "13994098713" } }
+    ]
+  },
+  "power_on_time": { "hours": 3864 },
+  "power_cycle_count": 8,
+  "temperature": { "current": 54 }
+}

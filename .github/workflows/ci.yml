@@ -1,0 +1,220 @@
+name: CI
+
+# Branche de travail : couverte par pull_request (un seul déclenchement, pas de minutes en double).
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+# Écriture requise pour les releases de master (voir tools/ci/release.sh). Sur une pull request,
+# les étapes de release sont sautées.
+permissions:
+  contents: write
+
+jobs:
+  # Lint et tests du moteur et de l'app (Linux).
+  check:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Dépendances système Tauri
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libwebkit2gtk-4.1-dev libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf
+      - name: smartctl statique (requis par la configuration Linux)
+        run: tools/build-smartctl-linux.sh
+      - name: Interface (typage + build)
+        working-directory: app
+        run: |
+          npm ci
+          npm run build
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - name: Release (brouillon)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash tools/ci/release.sh create
+
+  # AppImage Linux, construite sur Ubuntu 22.04 (glibc 2.35) pour la compatibilité.
+  linux-appimage:
+    runs-on: ubuntu-22.04
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Dépendances système Tauri
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libwebkit2gtk-4.1-dev libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev patchelf xvfb
+      - run: tools/build-smartctl-linux.sh
+      - name: Build AppImage
+        working-directory: app
+        env:
+          NO_STRIP: "true"
+        run: |
+          npm ci
+          npx tauri build --bundles appimage
+      - name: Autotest de l'AppImage
+        run: |
+          mkdir -p usb/linux
+          cp target/release/bundle/appimage/*.AppImage usb/linux/PCCheck.AppImage
+          chmod +x usb/linux/PCCheck.AppImage
+          timeout 120 xvfb-run -a usb/linux/PCCheck.AppImage --self-test "$PWD/selftest-linux.json"
+          cat selftest-linux.json
+          jq -e '.ok == true and .appInfo.smartctl.status == "ready"' selftest-linux.json
+      - name: Joindre l'AppImage à la release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp usb/linux/PCCheck.AppImage PCCheck-linux.AppImage
+          bash tools/ci/release.sh upload PCCheck-linux.AppImage
+      # Non bloquant : le quota de stockage d'artefacts du compte GitHub peut être atteint.
+      - uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: pccheck-linux
+          retention-days: 1
+          path: |
+            usb/linux/
+            selftest-linux.json
+
+  # Exécutable Windows portable : build, manifeste admin, autotest et capture d'écran.
+  windows:
+    runs-on: windows-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: smartctl.exe (smartmontools via Chocolatey)
+        shell: pwsh
+        run: |
+          choco install smartmontools -y --no-progress | Out-Null
+          $src = "C:\Program Files\smartmontools\bin\smartctl.exe"
+          if (-not (Test-Path $src)) { throw "smartctl.exe introuvable après installation" }
+          New-Item -ItemType Directory -Force tools\windows | Out-Null
+          Copy-Item $src tools\windows\smartctl.exe
+          & tools\windows\smartctl.exe --version | Select-Object -First 1
+      - name: Build (exécutable seul, sans installateur)
+        working-directory: app
+        run: |
+          npm ci
+          npx tauri build --no-bundle
+      - name: Vérifier le manifeste requireAdministrator
+        shell: pwsh
+        run: |
+          $mt = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\mt.exe" | Sort-Object FullName | Select-Object -Last 1
+          & $mt.FullName -nologo "-inputresource:target\release\pccheck.exe;#1" "-out:manifest.xml"
+          Get-Content manifest.xml
+          if (-not (Select-String -Path manifest.xml -Pattern 'level="requireAdministrator"' -Quiet)) { throw "requireAdministrator absent du manifeste" }
+          if (-not (Select-String -Path manifest.xml -Pattern 'Microsoft.Windows.Common-Controls' -Quiet)) { throw "Common-Controls absent du manifeste" }
+      - name: Assembler le dossier portable
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force usb\windows\tools | Out-Null
+          Copy-Item target\release\pccheck.exe usb\windows\PCCheck.exe
+          Copy-Item tools\windows\smartctl.exe usb\windows\tools\smartctl.exe
+          Get-ChildItem -Recurse usb\windows | Select-Object FullName, Length
+      - name: Autotest
+        shell: pwsh
+        run: |
+          $out = "$PWD\selftest-windows.json"
+          $p = Start-Process -FilePath usb\windows\PCCheck.exe -ArgumentList "--self-test", "`"$out`"" -PassThru
+          if (-not $p.WaitForExit(120000)) { $p.Kill(); throw "autotest : délai dépassé" }
+          Write-Host "code de sortie : $($p.ExitCode)"
+          if (-not (Test-Path $out)) { throw "autotest : aucun rapport écrit" }
+          Get-Content $out
+          $r = Get-Content $out -Raw | ConvertFrom-Json
+          if (-not $r.ok) { throw "autotest en échec" }
+          if ($r.appInfo.smartctl.status -ne "ready") { throw "smartctl non prêt" }
+          Write-Host "élevé : $($r.appInfo.elevated)"
+      - name: Capture d'écran
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath usb\windows\PCCheck.exe -PassThru
+          Start-Sleep -Seconds 12
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          $g.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+          $bmp.Save("$PWD\screenshot-windows.png", [System.Drawing.Imaging.ImageFormat]::Png)
+          Write-Host "écran : $($b.Width)x$($b.Height)"
+          if (-not $p.HasExited) { $p.Kill() }
+          # Copie JPEG dans le journal (base64, lignes de 4000 car.) : consultable même sans artefact.
+          $codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq "image/jpeg" }
+          $params = New-Object System.Drawing.Imaging.EncoderParameters 1
+          $params.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter ([System.Drawing.Imaging.Encoder]::Quality, [long]70)
+          $ms = New-Object System.IO.MemoryStream
+          $bmp.Save($ms, $codec, $params)
+          $b64 = [Convert]::ToBase64String($ms.ToArray())
+          Write-Host "CAPTURE-DEBUT"
+          for ($i = 0; $i -lt $b64.Length; $i += 4000) { Write-Host ("CAPTURE:" + $b64.Substring($i, [Math]::Min(4000, $b64.Length - $i))) }
+          Write-Host "CAPTURE-FIN"
+      - name: Outils de la clé (adb, PhotoRec, TestDisk, The Sleuth Kit)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        shell: pwsh
+        run: ./tools/fetch-tools-windows.ps1
+      - name: Paquet de la clé (Windows)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        shell: pwsh
+        run: |
+          ./tools/assemble-usb.ps1
+          Compress-Archive -Path dist-usb\* -DestinationPath PCCheck-windows.zip
+          Get-Item PCCheck-windows.zip | Select-Object Name, Length
+      - name: Joindre le paquet Windows à la release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash tools/ci/release.sh upload PCCheck-windows.zip
+      - uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: pccheck-windows
+          retention-days: 1
+          path: |
+            usb/windows/
+            selftest-windows.json
+            screenshot-windows.png
+            manifest.xml
+
+  # Publication : seulement si les tests et les deux builds ont réussi.
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: [linux-appimage, windows]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publier la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash tools/ci/release.sh publish

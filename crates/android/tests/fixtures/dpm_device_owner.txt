@@ -1,0 +1,2 @@
+1 owner:
+User  0: admin=com.example.mdm/.AdminReceiver,DeviceOwner,Affiliated

@@ -1,0 +1,33 @@
+[package]
+name = "pccheck-recovery"
+description = "PCCheck : récupération de fichiers supprimés avec PhotoRec."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+pccheck-core = { path = "../core" }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+# Pseudo-terminal multiplateforme (ConPTY sous Windows, openpty sous Unix) pour TestDisk.
+portable-pty = "0.9"
+
+# Lancement de PhotoRec avec une console masquée, numéro de disque physique d'un volume,
+# liste des lecteurs et espace libre.
+[target.'cfg(windows)'.dependencies.windows-sys]
+version = "0.61"
+features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
+    "Win32_System_IO",
+    "Win32_System_Ioctl",
+    "Win32_System_Threading",
+    "Win32_System_WindowsProgramming",
+]
+
+# statvfs (espace libre) et kill (arrêt propre de PhotoRec par SIGTERM).
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

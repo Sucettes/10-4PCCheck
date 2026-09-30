@@ -1,0 +1,6 @@
+00:00.0 "Host bridge" "Intel Corporation" "Xeon E3-1200 v6/7th Gen Core Processor Host Bridge/DRAM Registers" -r08 "Lenovo" "Device 2258"
+00:02.0 "VGA compatible controller" "Intel Corporation" "UHD Graphics 620" -r07 "Lenovo" "Device 2258"
+00:14.0 "USB controller" "Intel Corporation" "Sunrise Point-LP USB 3.0 xHCI Controller" -r21 -p30 "Lenovo" "Device 2258"
+00:1f.6 "Ethernet controller" "Intel Corporation" "Ethernet Connection (4) I219-V" -r21 "Lenovo" "Device 2258"
+01:00.0 "3D controller" "NVIDIA Corporation" "GP108M [GeForce MX150]" -ra1 "Lenovo" "Device 2258"
+02:00.0 "Network controller" "Intel Corporation" "Wireless 8265 / 8275" -r78 "Intel Corporation" "Dual Band Wireless-AC 8265"

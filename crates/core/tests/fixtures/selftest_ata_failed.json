@@ -1,0 +1,25 @@
+{
+  "json_format_version": [1, 0],
+  "smartctl": { "version": [7, 5], "exit_status": 128 },
+  "device": { "name": "/dev/sdb", "info_name": "/dev/sdb [SAT]", "type": "sat", "protocol": "ATA" },
+  "ata_smart_data": {
+    "self_test": {
+      "status": { "value": 121, "string": "completed: read failure", "passed": false },
+      "polling_minutes": { "short": 1, "extended": 120 }
+    },
+    "capabilities": { "self_tests_supported": true }
+  },
+  "ata_smart_self_test_log": {
+    "standard": {
+      "revision": 1,
+      "table": [
+        { "type": { "value": 2, "string": "Extended offline" }, "status": { "value": 121, "string": "Completed: read failure", "remaining_percent": 90, "passed": false }, "lifetime_hours": 42611, "lba": 184467 },
+        { "type": { "value": 1, "string": "Short offline" }, "status": { "value": 0, "string": "Completed without error", "passed": true }, "lifetime_hours": 42600 },
+        { "type": { "value": 1, "string": "Short offline" }, "status": { "value": 33, "string": "Aborted by host", "remaining_percent": 10 }, "lifetime_hours": 42590 }
+      ],
+      "count": 3,
+      "error_count_total": 1,
+      "error_count_outdated": 0
+    }
+  }
+}

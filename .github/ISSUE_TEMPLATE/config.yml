@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation (wiki)
+    url: https://github.com/Sucettes/10-4PCCheck/wiki
+    about: Installation, lecture des résultats, dépannage.
+  - name: Faille de sécurité
+    url: https://github.com/Sucettes/10-4PCCheck/security/advisories/new
+    about: Signalement privé, jamais dans une issue publique.

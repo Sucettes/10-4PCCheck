@@ -1,0 +1,3 @@
+Filesystem                                 1K-blocks    Used Available Use% Mounted on
+/dev/block/bootdevice/by-name/userdata_long_name
+                                            52428800 1048576  51380224   2% /data

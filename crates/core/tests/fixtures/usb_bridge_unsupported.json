@@ -1,0 +1,11 @@
+{
+  "json_format_version": [1, 0],
+  "smartctl": {
+    "version": [7, 5],
+    "messages": [
+      { "string": "/dev/sdc: Unknown USB bridge [0x152d:0x0578 (0x0209)]", "severity": "error" },
+      { "string": "Please specify device type with the -d option.", "severity": "information" }
+    ],
+    "exit_status": 1
+  }
+}

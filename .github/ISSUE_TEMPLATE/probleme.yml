@@ -1,0 +1,57 @@
+name: Problème
+description: Quelque chose ne fonctionne pas ou donne un résultat faux.
+labels: ["bogue", "à trier"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Merci ! Les issues sont **publiques** : n'y colle ni numéro de série, ni nom de volume, ni adresse, ni rapport complet sans l'avoir relu.
+  - type: textarea
+    id: probleme
+    attributes:
+      label: Que s'est-il passé ?
+      description: Ce que tu as fait, ce que tu attendais, ce que tu as obtenu.
+    validations:
+      required: true
+  - type: dropdown
+    id: ecran
+    attributes:
+      label: Écran concerné
+      options:
+        - Accueil
+        - Analyse complète
+        - Disques (santé, âge, vitesse, scan, capacité)
+        - Téléphone Android
+        - Récupération de fichiers
+        - Rapports (HTML, PDF)
+        - Autre
+    validations:
+      required: true
+  - type: dropdown
+    id: systeme
+    attributes:
+      label: Système
+      options:
+        - Windows 11
+        - Windows 10
+        - Linux (AppImage)
+        - Linux live (clé bootable)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version de PCCheck
+      description: Nom de la release téléchargée (ex. v0.1.0-build.42), sinon la version affichée en bas de la barre latérale.
+    validations:
+      required: true
+  - type: textarea
+    id: materiel
+    attributes:
+      label: Matériel concerné
+      description: Modèle du disque, de l'adaptateur USB, du téléphone... (sans numéro de série).
+  - type: textarea
+    id: extrait
+    attributes:
+      label: Extrait du rapport ou capture d'écran
+      description: Seulement la partie utile, relue.

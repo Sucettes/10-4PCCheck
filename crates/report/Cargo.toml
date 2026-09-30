@@ -1,0 +1,28 @@
+[package]
+name = "pccheck-report"
+description = "PCCheck : rapport versionné, verdict, export HTML et PDF."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+# Date locale avec fuseau (RFC 3339) ; `clock` lit le fuseau du système.
+chrono = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
+# Empreinte SHA-256 du JSON du rapport.
+sha2 = "0.10"
+# PDF : compilateur Typst embarqué (décision du plan, section 4). Mêmes versions mineures
+# pour les deux crates : typst-pdf dépend de typst-library à la même version.
+typst = "0.15.1"
+typst-pdf = "0.15.1"
+# Type `PagedDocument` (non réexporté par `typst`) ; déjà tiré par typst-pdf, rien à compiler en plus.
+typst-layout = "0.15.1"
+# Polices embarquées dans le binaire (DejaVu Sans et Sans Mono, include_bytes!) : aucune
+# police système n'est lue, le rendu est identique sur Windows et Linux.
+dejavu = "2.37"
+
+[dev-dependencies]
+tempfile = "3"

@@ -1,0 +1,19 @@
+name: Idée ou amélioration
+description: Une mesure, un écran ou un comportement à ajouter ou changer.
+labels: ["amélioration", "à trier"]
+body:
+  - type: textarea
+    id: besoin
+    attributes:
+      label: Le besoin
+      description: Quelle situation d'achat ou de diagnostic ce serait utile à résoudre ?
+    validations:
+      required: true
+  - type: textarea
+    id: proposition
+    attributes:
+      label: Ce qui est proposé
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Autres pistes envisagées

@@ -1,0 +1,28 @@
+PCCheck - clé de diagnostic
+================================
+
+WINDOWS
+1. Ouvre le dossier windows\ et lance PCCheck.exe (pas d'exécution automatique depuis une clé).
+2. « Windows a protégé votre ordinateur » (SmartScreen) : clique « Informations complémentaires »,
+   puis « Exécuter quand même ». L'outil n'est pas signé, c'est normal.
+3. Accepte l'invite administrateur : sans elle, ni le SMART des disques ni le scan de surface ne
+   sont lisibles. Le vendeur doit l'accepter ou te donner le mot de passe.
+
+LINUX
+1. Ouvre le dossier linux\, rends l'AppImage exécutable si besoin (clic droit > Propriétés,
+   ou chmod +x PCCheck.AppImage) et lance-la.
+2. Pour les données SMART : sudo ./PCCheck.AppImage
+
+DOSSIERS
+- rapports\ : rapports générés (JSON, HTML, PDF). Le HTML s'ouvre dans n'importe quel navigateur,
+  sans Internet.
+- recup\    : destination proposée pour la récupération de fichiers (PhotoRec). La destination doit
+  toujours être sur un AUTRE disque que celui qu'on récupère.
+
+TÉLÉPHONE ANDROID
+Sur le téléphone : Paramètres > À propos > appuie 7 fois sur « Numéro de build » ; puis
+Options pour les développeurs > Débogage USB. Branche le câble et accepte la clé de l'ordinateur.
+
+TEST DE LA MÉMOIRE COMPLET
+Le test depuis Windows ne vérifie que la mémoire libre. Pour un test complet, démarre sur la clé
+bootable (MemTest86+) : voir docs/CLE-BOOTABLE.md dans le projet.

@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+  <!-- Aperçu social du dépôt (Settings > General > Social preview). Rendu en PNG par
+       tools/github/render-social-preview.sh. Contenu utile dans la marge de 80 px du gabarit GitHub. -->
+  <defs>
+    <linearGradient id="fond" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7f9fc"/>
+      <stop offset="1" stop-color="#e9eef8"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="640" fill="url(#fond)"/>
+  <rect x="0" y="0" width="1280" height="12" fill="#2459d6"/>
+
+  <!-- Logo (même dessin que app/src-tauri/icons/icon.svg), 240 px. -->
+  <g transform="translate(130 160) scale(1.875)">
+    <rect width="128" height="128" rx="28" fill="#2459d6"/>
+    <path d="M24 84A40 40 0 0 1 44 49.36" fill="none" stroke="#ff7a7a" stroke-width="18"/>
+    <path d="M44 49.36A40 40 0 0 1 84 49.36" fill="none" stroke="#ffc933" stroke-width="18"/>
+    <path d="M84 49.36A40 40 0 0 1 104 84" fill="none" stroke="#5fe39a" stroke-width="18"/>
+    <path d="M50 59.8L38 39M78 59.8L90 39" stroke="#2459d6" stroke-width="4"/>
+    <path d="M64 84L91.7 68" stroke="#ffffff" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="64" cy="84" r="9" fill="#ffffff"/>
+  </g>
+
+  <g font-family="IBM Plex Sans" fill="#1a1d23">
+    <text x="430" y="262" font-size="104" font-weight="700" letter-spacing="-2">PCCheck</text>
+    <text x="434" y="330" font-size="36" fill="#2d3340">Diagnostic d'occasion sur clé USB</text>
+    <text x="434" y="384" font-size="28" fill="#5d6574">Ordinateurs · disques · téléphones Android</text>
+    <text x="434" y="424" font-size="28" fill="#5d6574">Récupération de fichiers · rapport PDF et verdict</text>
+  </g>
+
+  <!-- Verdicts, dans les couleurs de l'application. -->
+  <g font-family="IBM Plex Sans" font-size="24" font-weight="600">
+    <rect x="434" y="462" width="162" height="48" rx="24" fill="#e3f5ea"/>
+    <text x="515" y="494" text-anchor="middle" fill="#177a47">Bon achat</text>
+    <rect x="612" y="462" width="170" height="48" rx="24" fill="#fff3d6"/>
+    <text x="697" y="494" text-anchor="middle" fill="#8a5a00">À négocier</text>
+    <rect x="798" y="462" width="150" height="48" rx="24" fill="#fdeceb"/>
+    <text x="873" y="494" text-anchor="middle" fill="#b42318">À éviter</text>
+  </g>
+
+  <text x="1140" y="560" font-family="IBM Plex Sans" font-size="22" fill="#8a93a3" text-anchor="end">Windows · Linux · open source</text>
+</svg>

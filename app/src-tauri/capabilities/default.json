@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissions de la fenêtre principale. Les commandes de l'app (disques, tâches longues, inventaire, téléphone, récupération, rapports) sont autorisées par défaut.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
