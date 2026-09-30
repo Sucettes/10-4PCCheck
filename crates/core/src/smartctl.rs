@@ -7,9 +7,10 @@ use serde::Serialize;
 use thiserror::Error;
 
 use crate::disk::{
-    dedupe_disks, parse_disk, parse_scan, DiskEntry, DiskInfo, RawOutput, ScanDevice,
+    dedupe_disks, parse_disk, parse_scan, DiskEntry, DiskInfo, Protocol, RawOutput, ScanDevice,
     FATAL_EXIT_BITS,
 };
+use crate::identify::parse_identify;
 use crate::process::{self, ProcessError};
 use crate::selftest::{parse_self_test_status, SelfTestKind, SelfTestStatus};
 
@@ -94,9 +95,17 @@ impl Smartctl {
         parse_scan(&self.run(&["--scan-open", "-j"])?)
     }
 
-    /// Toutes les informations SMART d'un disque.
+    /// Toutes les informations SMART d'un disque, plus ses fonctionnalités s'il est ATA/SATA
+    /// (voir `identify`). Fonctionnalités illisibles : le reste de la lecture est gardé.
     pub fn info(&self, device: &ScanDevice) -> Result<DiskInfo, SmartctlError> {
-        parse_disk(&self.run(&device_args(&["-a", "-j"], device))?, device)
+        let mut info = parse_disk(&self.run(&device_args(&["-a", "-j"], device))?, device)?;
+        if info.protocol == Protocol::Ata {
+            info.features = self
+                .run(&device_args(&["--identify"], device))
+                .ok()
+                .and_then(|text| parse_identify(&text));
+        }
+        Ok(info)
     }
 
     /// Lance un auto-test. Le disque le fait seul ; `self_test_status` en suit la progression.

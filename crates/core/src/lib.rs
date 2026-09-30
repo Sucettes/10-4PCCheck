@@ -8,6 +8,7 @@ pub mod attributes;
 pub mod capacity;
 pub mod checks;
 pub mod disk;
+pub mod identify;
 pub mod process;
 pub mod rawio;
 pub mod selftest;
