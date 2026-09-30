@@ -1,0 +1,2 @@
+# Scripts shell exécutés par bash, y compris sur la CI Windows (où Git convertirait en CRLF).
+*.sh text eol=lf
