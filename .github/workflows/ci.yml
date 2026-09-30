@@ -93,7 +93,7 @@ jobs:
           cp usb/linux/PCCheck.AppImage PCCheck-linux.AppImage
           bash tools/ci/release.sh upload PCCheck-linux.AppImage
       # Non bloquant : le quota de stockage d'artefacts du compte GitHub peut être atteint.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         continue-on-error: true
         with:
           name: pccheck-linux
@@ -196,7 +196,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: bash tools/ci/release.sh upload PCCheck-windows.zip
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         continue-on-error: true
         with:
           name: pccheck-windows
