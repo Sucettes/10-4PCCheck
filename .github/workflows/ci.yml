@@ -7,9 +7,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Pull request : un nouveau push annule le build précédent, devenu inutile. Master : chaque
+# commit a son propre groupe, jamais annulé ni remplacé, pour que chaque fusion publie sa release
+# (avec un groupe par branche, une fusion annulait la release de la précédente).
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.ref == 'refs/heads/master' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 env:
   CARGO_TERM_COLOR: always

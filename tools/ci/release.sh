@@ -25,11 +25,26 @@ case "${1:-}" in
     gh release upload "$tag" "$@" --clobber
     ;;
   publish)
-    gh release edit "$tag" --draft=false --latest
+    # Plusieurs builds de master peuvent tourner en même temps (fusions rapprochées) et finir
+    # dans le désordre : « latest » va toujours au numéro de build le plus grand.
+    gh release edit "$tag" --draft=false --latest=false
+    newest=$(gh release list --exclude-drafts --limit 100 --json tagName --jq '.[].tagName' |
+      sed -n 's/.*-build\.\([0-9][0-9]*\)$/\1/p' | sort -n | tail -1)
+    if [ "$newest" = "$GITHUB_RUN_NUMBER" ]; then
+      gh release edit "$tag" --latest
+    fi
+    # Brouillons abandonnés : seulement ceux dont le build est terminé (échoué ou annulé). Celui
+    # d'un build encore en cours est gardé, il sera publié à sa fin.
     gh release list --limit 100 --json tagName,isDraft \
       --jq '.[] | select(.isDraft) | .tagName' |
       while read -r old; do
-        [ "$old" = "$tag" ] || gh release delete "$old" --yes
+        [ "$old" = "$tag" ] && continue
+        number=${old##*-build.}
+        case "$number" in '' | *[!0-9]*) continue ;; esac
+        status=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?per_page=100" \
+          --jq ".workflow_runs[] | select(.run_number == $number) | .status" | head -1)
+        [ "$status" = "completed" ] || [ -z "$status" ] || continue
+        gh release delete "$old" --yes
       done
     ;;
   *)
