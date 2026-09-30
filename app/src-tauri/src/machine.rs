@@ -1,10 +1,12 @@
-//! Commandes de l'analyse complète : inventaire, test de charge CPU, test RAM partiel.
+//! Commandes de l'analyse complète : inventaire, test de charge CPU, test RAM partiel, test de
+//! charge graphique (rendu fait dans l'interface, analysé ici).
 
 use std::sync::Arc;
 use std::time::Duration;
 
 use pccheck_inventory::{
-    available_memory_bytes, collect, run_cpu_stress, run_ram_test, MachineInventory,
+    analyse_gpu_test, available_memory_bytes, collect, gpu_sensors, run_cpu_stress, run_ram_test,
+    GpuSensor, GpuTestInput, GpuTestResult, MachineInventory,
 };
 use tauri::{AppHandle, State};
 
@@ -71,4 +73,19 @@ pub fn start_ram_test(
     })
     .map_err(CommandError::Internal)?;
     Ok("ram".into())
+}
+
+/// Capteurs des cartes NVIDIA (température, fréquence) lus pendant le test graphique.
+#[tauri::command]
+pub async fn gpu_sensors_now() -> Result<Vec<GpuSensor>, CommandError> {
+    blocking(gpu_sensors).await
+}
+
+/// Mesures du test de charge graphique fait en WebGL par l'interface : analysées comme le test
+/// processeur, puis gardées pour le rapport.
+#[tauri::command]
+pub fn record_gpu_test(input: GpuTestInput, cache: State<'_, Cache>) -> GpuTestResult {
+    let result = analyse_gpu_test(input);
+    cache.lock().gpu = Some(result.clone());
+    result
 }

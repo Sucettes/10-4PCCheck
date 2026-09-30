@@ -6,7 +6,7 @@ Outil de diagnostic portable, sur clé USB, pour vérifier un appareil d'occasio
 
 | Mode | Contenu |
 |---|---|
-| **Analyse complète** d'un ordinateur | Inventaire (processeur, mémoire, carte mère, graphique, réseau), disques, batterie, test de charge du processeur (bridage), test mémoire partiel, licence Windows, BitLocker, Secure Boot, TPM, gestion d'entreprise (Intune, Autopilot, Azure AD), tests interactifs (clavier, pixels morts, webcam, micro, haut-parleurs, pavé tactile) et vérifications devant le vendeur |
+| **Analyse complète** d'un ordinateur | Inventaire (processeur, mémoire, carte mère, graphique, réseau), disques, batterie, tests de charge du processeur et de la carte graphique (bridage, erreurs de rendu), test mémoire partiel, licence Windows, BitLocker, Secure Boot, TPM, gestion d'entreprise (Intune, Autopilot, Azure AD), tests interactifs (clavier, pixels morts, webcam, micro, haut-parleurs, pavé tactile) et vérifications devant le vendeur |
 | **Un seul disque** (SSD, disque dur, clé, disque en boîtier USB) | SMART avec attributs traduits et évalués, vie restante, données écrites, vérifications de cohérence (compteurs remis à zéro ?), auto-tests SMART, scan de surface en lecture seule, test de capacité réelle (fausses clés USB) |
 | **Téléphone Android** (par ADB) | Batterie, patch de sécurité, chargeur de démarrage, root, comptes à retirer (verrou FRP), gestion d'entreprise, stockage, liste de vérifications manuelles |
 | **Récupération de fichiers** | PhotoRec derrière une interface : source, types de fichiers, destination obligatoirement sur un autre disque |

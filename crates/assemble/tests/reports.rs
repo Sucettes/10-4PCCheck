@@ -9,7 +9,8 @@ use pccheck_assemble::{
 };
 use pccheck_core::{parse_disk, DiskEntry, ScanDevice};
 use pccheck_inventory::{
-    MachineInventory, RamTestResult, StressResult, ThrottleAnalysis, ThrottleLevel,
+    analyse_gpu_test, GpuSample, GpuTestInput, MachineInventory, RamTestResult, StressResult,
+    ThrottleAnalysis, ThrottleLevel,
 };
 use pccheck_report::{to_html, to_pdf, ChecklistEntry, Level};
 
@@ -177,6 +178,40 @@ fn machine_report_with_real_inventory_renders() {
     std::fs::write(dir.join("machine.html"), html).unwrap();
     std::fs::write(dir.join("machine.pdf"), pdf).unwrap();
     std::fs::write(dir.join("machine.json"), serde_json::to_vec(&rep).unwrap()).unwrap();
+}
+
+#[test]
+fn gpu_render_errors_make_the_machine_red() {
+    let samples = (1..=60)
+        .map(|i| GpuSample {
+            t_s: f64::from(i),
+            passes_per_s: 50.0,
+            temperature_c: Some(70.0),
+        })
+        .collect();
+    let r = Results {
+        inventory: Some(MachineInventory::default()),
+        gpu: Some(analyse_gpu_test(GpuTestInput {
+            renderer: Some("Carte de test".into()),
+            samples,
+            render_errors: 2,
+            checks: 6,
+            cancelled: false,
+        })),
+        ..Results::default()
+    };
+    let mut rep = build_machine_report(&r, &[], vec![], vec![]).unwrap();
+    let (html, _) = render(&mut rep);
+    let gpu = rep.sections.iter().find(|s| s.id == "graphique").unwrap();
+    let errors = gpu
+        .items
+        .iter()
+        .find(|i| i.label == "Erreurs de rendu")
+        .unwrap();
+    assert_eq!(errors.level, Level::Bad);
+    assert_eq!(rep.verdict.level, Level::Bad);
+    assert!(html.contains("Aucun bridage"));
+    assert!(html.contains("70 °C"));
 }
 
 #[test]

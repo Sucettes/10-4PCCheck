@@ -14,8 +14,8 @@ use pccheck_core::{
     AttributeStatus, CheckLevel, DiskEntry, DiskInfo, MediaKind, Protocol, SelfTestStatus,
 };
 use pccheck_inventory::{
-    BitLockerProtection, MachineInventory, NetworkKind, RamTestResult, SecureBootState,
-    StressResult, ThrottleLevel,
+    BitLockerProtection, GpuTestResult, MachineInventory, NetworkKind, RamTestResult,
+    SecureBootState, StressResult, ThrottleLevel,
 };
 use pccheck_report::{
     ChecklistEntry, Detail, Item, Level, Report, Section, Subject, SubjectKind, Table, Thresholds,
@@ -44,6 +44,8 @@ pub struct Results {
     pub inventory: Option<MachineInventory>,
     pub stress: Option<StressResult>,
     pub ram: Option<RamTestResult>,
+    /// Test de charge graphique (WebGL, mesuré par l'interface).
+    pub gpu: Option<GpuTestResult>,
     /// Par chemin smartctl du disque.
     pub surface: HashMap<String, SurfaceResult>,
     pub self_tests: HashMap<String, SelfTestStatus>,
@@ -533,16 +535,7 @@ fn cpu_section(inv: &MachineInventory, r: &Results, th: &Thresholds) -> Section 
             .items
             .push(Item::new("Test de charge", "Non lancé", Level::Neutral)),
         Some(st) => {
-            let throttling = match st.throttling.level {
-                ThrottleLevel::None => Throttling::None,
-                ThrottleLevel::Brief => Throttling::Brief,
-                ThrottleLevel::Sustained => Throttling::Sustained,
-            };
-            let value = match throttling {
-                Throttling::None => "Aucun bridage",
-                Throttling::Brief => "Bridage bref",
-                Throttling::Sustained => "Bridage soutenu",
-            };
+            let (throttling, value) = throttling(st.throttling.level);
             let mut detail = format!(
                 "{} s de charge sur {} fils, baisse de débit {:.0} % par rapport à la référence.",
                 st.duration_ms / 1000,
@@ -573,6 +566,67 @@ fn cpu_section(inv: &MachineInventory, r: &Results, th: &Thresholds) -> Section 
             }
         }
     }
+    s
+}
+
+/// Niveau de bridage mesuré (processeur ou carte graphique) → seuil du rapport et libellé.
+fn throttling(level: ThrottleLevel) -> (Throttling, &'static str) {
+    match level {
+        ThrottleLevel::None => (Throttling::None, "Aucun bridage"),
+        ThrottleLevel::Brief => (Throttling::Brief, "Bridage bref"),
+        ThrottleLevel::Sustained => (Throttling::Sustained, "Bridage soutenu"),
+    }
+}
+
+/// Carte graphique : modèle, puis test de charge WebGL (bridage, erreurs de rendu, température).
+fn gpu_section(inv: &MachineInventory, r: &Results, th: &Thresholds) -> Section {
+    let mut s = Section::new("graphique", "Carte graphique");
+    for g in &inv.gpus {
+        let mut v = g.name.clone();
+        if let Some(m) = g.memory_bytes {
+            v.push_str(&format!(" · {}", fmt_bytes(m)));
+        }
+        s.items.push(Item::new("Modèle", v, Level::Neutral));
+    }
+    let Some(g) = &r.gpu else {
+        s.items.push(Item::new(
+            "Test de charge graphique",
+            "Non lancé",
+            Level::Neutral,
+        ));
+        return s;
+    };
+    let (level, value) = throttling(g.throttling.level);
+    let mut detail = format!(
+        "{:.0} s de rendu 3D intensif, baisse de débit {:.0} % par rapport à la référence.",
+        g.duration_s,
+        g.throttling.drop_pct.max(0.0)
+    );
+    if let Some(t) = g.max_temperature_c {
+        detail.push_str(&format!(" Température maximale : {t:.0} °C."));
+    }
+    if g.input.cancelled {
+        detail.push_str(" Test arrêté avant la fin.");
+    }
+    s.items.push(
+        Item::new("Test de charge graphique", value, th.cpu_throttling(level)).with_detail(detail),
+    );
+    s.items.push(if g.input.render_errors > 0 {
+        Item::new(
+            "Erreurs de rendu",
+            format!("{} sur {} contrôles", g.input.render_errors, g.input.checks),
+            Level::Bad,
+        )
+        .with_detail(
+            "La même image, rendue plusieurs fois, a changé : carte instable, surchauffe ou mémoire vidéo défectueuse.",
+        )
+    } else {
+        Item::new(
+            "Erreurs de rendu",
+            format!("Aucune sur {} contrôles", g.input.checks),
+            Level::Ok,
+        )
+    });
     s
 }
 
@@ -744,15 +798,7 @@ fn security_section(inv: &MachineInventory, th: &Thresholds) -> Option<Section> 
 }
 
 fn hardware_section(inv: &MachineInventory) -> Section {
-    let mut s = Section::new("materiel", "Graphique, réseau, carte mère");
-    for g in &inv.gpus {
-        let mut v = g.name.clone();
-        if let Some(m) = g.memory_bytes {
-            v.push_str(&format!(" · {}", fmt_bytes(m)));
-        }
-        s.items
-            .push(Item::new("Carte graphique", v, Level::Neutral));
-    }
+    let mut s = Section::new("materiel", "Réseau et carte mère");
     for n in &inv.network_adapters {
         let kind = match n.kind {
             NetworkKind::Wifi => "Wi-Fi",
@@ -859,6 +905,7 @@ pub fn build_machine_report(
     if let Some(s) = security_section(inv, &th) {
         rep.sections.push(s);
     }
+    rep.sections.push(gpu_section(inv, r, &th));
     rep.sections.push(hardware_section(inv));
     if let Some(s) = interactive_section(interactive) {
         rep.sections.push(s);
@@ -869,6 +916,7 @@ pub fn build_machine_report(
         "inventory": inv,
         "disks": r.disks,
         "cpu_stress": r.stress,
+        "gpu_stress": r.gpu,
         "ram_test": r.ram,
         "surface": r.surface,
         "self_tests": r.self_tests,

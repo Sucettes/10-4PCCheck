@@ -382,6 +382,8 @@ fn main() {
             machine::machine_inventory,
             machine::start_cpu_stress,
             machine::start_ram_test,
+            machine::gpu_sensors_now,
+            machine::record_gpu_test,
             recover::recovery_status,
             recover::recovery_trim_warning,
             recover::start_recovery,

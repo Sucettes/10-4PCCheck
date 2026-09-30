@@ -9,7 +9,15 @@ const PAD = { left: 38, right: 38, top: 10, bottom: 22 };
  * (°C, axe de droite) en fonction du temps. Une baisse durable du débit pendant que la
  * température plafonne est la signature du bridage thermique.
  */
-export function StressChart({ samples, seconds }: { samples: StressSample[]; seconds: number }) {
+export function StressChart({
+  samples,
+  seconds,
+  rateLabel = "Débit de calcul",
+}: {
+  samples: StressSample[];
+  seconds: number;
+  rateLabel?: string;
+}) {
   if (samples.length < 2) return null;
   const maxRate = Math.max(...samples.map((s) => s.iterations_per_sec)) || 1;
   const temps = samples.map((s) => s.max_celsius).filter((t): t is number => t !== null);
@@ -30,7 +38,7 @@ export function StressChart({ samples, seconds }: { samples: StressSample[]; sec
   return (
     <figure className="stress-chart">
       <figcaption className="chart-legend small">
-        <span className="legend-rate">Débit de calcul</span> {Math.round((last.iterations_per_sec / maxRate) * 100)} % du maximum
+        <span className="legend-rate">{rateLabel}</span> {Math.round((last.iterations_per_sec / maxRate) * 100)} % du maximum
         {last.max_celsius !== null && (
           <>
             {" · "}

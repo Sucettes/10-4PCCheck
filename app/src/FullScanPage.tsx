@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { formatBytes } from "./format";
+import { gpuState, runGpuStress, stopGpuStress, subscribeGpu, type GpuState } from "./gpuStress";
 import { interactiveResults, InteractiveTests, useResults } from "./InteractiveTests";
 import { cancelJob, isOk, useJob, waitForJob } from "./jobs";
 import { errorMessage } from "./load";
@@ -31,14 +32,16 @@ const CHECKLIST = [
 ];
 
 const CPU_SECONDS = 300;
+const GPU_SECONDS = 120;
 
-type Step = "idle" | "inventory" | "disks" | "ram" | "cpu" | "done";
+type Step = "idle" | "inventory" | "disks" | "ram" | "cpu" | "gpu" | "done";
 const STEP_LABELS: Record<Step, string> = {
   idle: "",
   inventory: "Inventaire du matériel",
   disks: "Lecture des disques",
   ram: "Test de la mémoire (partiel)",
   cpu: "Test de charge du processeur",
+  gpu: "Test de charge de la carte graphique",
   done: "Analyse terminée",
 };
 
@@ -96,6 +99,8 @@ export function FullScanPage({ onRefreshDisks }: { onRefreshDisks: () => Promise
     }
   }, [cpu.running, cpu.result]);
   const [ram] = useJob<RamProgress, unknown>("ram");
+  const gpu = useSyncExternalStore(subscribeGpu, gpuState);
+  const [gpuNote, setGpuNote] = useState<string | null>(null);
 
   const refreshPreview = useCallback(() => {
     invoke<Report>("preview_machine_report", { interactive: interactivePayload(), checklist: checklistEntries(checks) })
@@ -137,6 +142,15 @@ export function FullScanPage({ onRefreshDisks }: { onRefreshDisks: () => Promise
       setSamples([]);
       await invoke("start_cpu_stress", { seconds: CPU_SECONDS });
       await waitForJob("cpu");
+      go("gpu");
+      setGpuNote(null);
+      try {
+        const input = await runGpuStress(GPU_SECONDS);
+        await invoke("record_gpu_test", { input });
+      } catch (e) {
+        // Sans WebGL (pilote absent, bureau à distance), le reste de l'analyse reste valable.
+        setGpuNote(`Test graphique impossible : ${errorMessage(e)}`);
+      }
       go("done");
     } catch (e) {
       setError(errorMessage(e));
@@ -171,7 +185,7 @@ export function FullScanPage({ onRefreshDisks }: { onRefreshDisks: () => Promise
         <div className="header-actions">
           <button type="button" className={preview ? "btn" : "btn btn-primary"} onClick={() => void run()} disabled={running}>
             {step === "done" ? "Relancer l'analyse" : "Lancer l'analyse"}
-            <span className="btn-sub">~7 min</span>
+            <span className="btn-sub">~9 min</span>
           </button>
           {inventory && (
             <ReportButton
@@ -189,11 +203,27 @@ export function FullScanPage({ onRefreshDisks }: { onRefreshDisks: () => Promise
       )}
       {!inventory && !error && <p className="muted">Lecture du matériel… (environ 10 secondes)</p>}
 
-      {running && <StepProgress step={step} cpu={cpu.progress} ram={ram.progress} />}
+      {gpuNote && <div className="banner banner-warn">{gpuNote}</div>}
+      {running && <StepProgress step={step} cpu={cpu.progress} ram={ram.progress} gpu={gpu} />}
       {samples.length > 1 && (
         <section className="panel" aria-label="Processeur sous charge">
           <h3>Processeur sous charge</h3>
           <StressChart samples={samples} seconds={CPU_SECONDS} />
+        </section>
+      )}
+      {gpu.samples.length > 1 && (
+        <section className="panel" aria-label="Carte graphique sous charge">
+          <h3>Carte graphique sous charge</h3>
+          {gpu.renderer && <p className="muted small">{gpu.renderer}</p>}
+          <StressChart
+            samples={gpu.samples.map((g) => ({
+              elapsed_ms: g.t_s * 1000,
+              iterations_per_sec: g.passes_per_s,
+              max_celsius: g.temperature_c,
+            }))}
+            seconds={GPU_SECONDS}
+            rateLabel="Débit de rendu"
+          />
         </section>
       )}
 
@@ -232,8 +262,18 @@ export function FullScanPage({ onRefreshDisks }: { onRefreshDisks: () => Promise
   );
 }
 
-function StepProgress({ step, cpu, ram }: { step: Step; cpu: StressSample | null; ram: RamProgress | null }) {
-  const steps: Step[] = ["inventory", "disks", "ram", "cpu"];
+function StepProgress({
+  step,
+  cpu,
+  ram,
+  gpu,
+}: {
+  step: Step;
+  cpu: StressSample | null;
+  ram: RamProgress | null;
+  gpu: GpuState;
+}) {
+  const steps: Step[] = ["inventory", "disks", "ram", "cpu", "gpu"];
   let pct: number | null = null;
   let detail = "";
   if (step === "cpu" && cpu) {
@@ -242,6 +282,12 @@ function StepProgress({ step, cpu, ram }: { step: Step; cpu: StressSample | null
   } else if (step === "ram" && ram) {
     pct = ram.bytes_total > 0 ? (ram.bytes_done / ram.bytes_total) * 100 : 0;
     detail = `Passe ${ram.pass} sur ${ram.total_passes} · ${ram.errors} erreur(s)`;
+  } else if (step === "gpu") {
+    const last = gpu.samples[gpu.samples.length - 1];
+    pct = last ? (last.t_s / GPU_SECONDS) * 100 : null;
+    detail = last
+      ? `${Math.round(last.t_s)} s sur ${GPU_SECONDS}${last.temperature_c !== null ? ` · ${Math.round(last.temperature_c)} °C` : ""} · ${gpu.renderErrors} erreur(s) de rendu`
+      : "";
   }
   const job = step === "cpu" ? "cpu" : step === "ram" ? "ram" : null;
   return (
@@ -260,8 +306,8 @@ function StepProgress({ step, cpu, ram }: { step: Step; cpu: StressSample | null
       <div className="bar" aria-hidden="true">
         <div className={pct === null ? "bar-fill bar-indeterminate" : "bar-fill"} style={pct === null ? undefined : { width: `${Math.min(pct, 100)}%` }} />
       </div>
-      {job && (
-        <button type="button" className="btn" onClick={() => void cancelJob(job)}>
+      {(job || step === "gpu") && (
+        <button type="button" className="btn" onClick={() => (job ? void cancelJob(job) : stopGpuStress())}>
           Passer ce test
         </button>
       )}

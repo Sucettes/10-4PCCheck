@@ -8,6 +8,7 @@
 //!   sur des sorties inventées ; la collecte propre à chaque OS est dans `win` et `linux`.
 
 pub mod error;
+pub mod gpu;
 pub mod linux_parse;
 pub mod model;
 pub mod parse;
@@ -29,6 +30,7 @@ use other as platform;
 use win as platform;
 
 pub use error::InventoryError;
+pub use gpu::{analyse_gpu_test, gpu_sensors, GpuSample, GpuSensor, GpuTestInput, GpuTestResult};
 pub use model::{
     AutopilotInfo, BatteryInfo, BiosInfo, BitLockerProtection, BitLockerVolume, BoardInfo,
     ComputerInfo, CpuInfo, DeviceJoin, GpuInfo, LicenseInfo, MachineInventory, MemoryInfo,

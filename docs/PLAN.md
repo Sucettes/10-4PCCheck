@@ -311,6 +311,7 @@ Claude vérifie tout ce qui peut l'être sans matériel réel. Le propriétaire 
 - [ ] Températures CPU sous Windows : zones ACPI seulement (souvent absentes). Pilote noyau (PawnIO / LibreHardwareMonitor) non intégré. Linux : hwmon.
 - [x] Test de charge CPU : bridage détecté par la baisse de débit (sans pilote), référence prise après la fenêtre de turbo (~30 s), erreurs de calcul détectées.
 - [x] Test RAM partiel en OS (50 % de la mémoire disponible, 5 motifs).
+- [x] Test de charge graphique (2 min) : shader WebGL2 lourd rendu en boucle dans la vue web, débit mesuré par barrières (`fenceSync`), même analyse du bridage que le CPU, image de contrôle comparée toutes les 10 s (erreurs de rendu), température par `nvidia-smi` (NVIDIA seulement, fourni avec le pilote). Limite : WebView2 peut rendre sur la carte intégrée d'un portable à deux cartes ; le moteur de rendu est indiqué dans le rapport.
 - [x] Tests interactifs : clavier (codes physiques), pixels morts, webcam, micro, haut-parleurs G/D, pavé tactile. Ports USB : dans la liste « devant le vendeur » (branche la clé dans chaque port).
 
 ### Phase 4 · Téléphone Android
