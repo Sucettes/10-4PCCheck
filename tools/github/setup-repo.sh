@@ -84,7 +84,8 @@ fi
 
 step "Wiki"
 wiki=$(mktemp -d)
-if gh repo clone "$repo.wiki" "$wiki" -- -q 2>/dev/null; then
+# HTTPS, comme le dépôt : le protocole de gh (souvent SSH) exige une clé SSH configurée.
+if git clone -q "https://github.com/$repo.wiki.git" "$wiki" 2>/dev/null; then
   cp docs/wiki/*.md "$wiki/"
   git -C "$wiki" add -A
   if git -C "$wiki" diff --cached --quiet; then
