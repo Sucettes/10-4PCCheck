@@ -6,6 +6,7 @@ members = [
     "crates/android",
     "crates/report",
     "crates/recovery",
+    "crates/assemble",
     "app/src-tauri",
 ]
 

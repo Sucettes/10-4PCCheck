@@ -215,7 +215,7 @@ fn unsafe_shutdowns(d: &DiskInfo, out: &mut Vec<Check>) {
 }
 
 /// Entier avec espace fine insécable comme séparateur de milliers (usage français).
-pub(crate) fn fmt_int(n: u64) -> String {
+pub fn fmt_int(n: u64) -> String {
     let digits = n.to_string();
     let mut out = String::with_capacity(digits.len() + digits.len() / 3 * 3);
     for (i, c) in digits.chars().enumerate() {
@@ -228,7 +228,7 @@ pub(crate) fn fmt_int(n: u64) -> String {
 }
 
 /// Octets en unités décimales (Go, To), comme les fabricants de disques.
-pub(crate) fn fmt_bytes(n: u64) -> String {
+pub fn fmt_bytes(n: u64) -> String {
     const UNITS: [&str; 5] = ["o", "Ko", "Mo", "Go", "To"];
     let mut value = n as f64;
     let mut unit = 0;

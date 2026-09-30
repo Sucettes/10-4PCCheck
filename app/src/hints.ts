@@ -146,6 +146,15 @@ export const surfaceHint: HintText = {
   ],
 };
 
+export const capacityHint: HintText = {
+  title: "Capacité réelle",
+  body: [
+    "Détecte les fausses clés USB et cartes SD, qui annoncent 256 Go mais n'en contiennent que 16 : les fichiers écrits au-delà écrasent silencieusement les premiers.",
+    "Le test remplit l'espace libre de blocs signés, les relit sans cache, puis les supprime. Tes fichiers existants ne sont pas touchés.",
+    "Pour tester toute la mémoire, lance-le sur une clé vide ou fraîchement formatée.",
+  ],
+};
+
 export const serialHint: HintText = {
   title: "Numéro de série",
   body: [

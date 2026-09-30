@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { getAppInfo, reportSelfTest, scanDisks } from "./api";
 import { DisksPage } from "./DisksPage";
+import { FullScanPage } from "./FullScanPage";
+import { HomePage } from "./HomePage";
+import { RecoveryPage } from "./RecoveryPage";
+import { ReportsPage } from "./ReportsPage";
 import { PhonePage } from "./Phone";
 import { Icon, type IconName } from "./icons";
 import { errorMessage, type Load } from "./load";
@@ -38,9 +42,9 @@ export default function App() {
   const [disks, setDisks] = useState<Load<DiskEntry[]>>({ state: "loading" });
   const [page, go] = usePage();
 
-  const refresh = () => {
+  const refresh = (): Promise<void> => {
     setDisks({ state: "loading" });
-    scanDisks()
+    return scanDisks()
       .then((value) => setDisks({ state: "ok", value }))
       .catch((e: unknown) => setDisks({ state: "error", message: errorMessage(e) }));
   };
@@ -49,7 +53,7 @@ export default function App() {
     getAppInfo()
       .then((value) => setInfo({ state: "ok", value }))
       .catch((e: unknown) => setInfo({ state: "error", message: errorMessage(e) }));
-    refresh();
+    void refresh();
   }, []);
 
   // Autotest : une fois tout chargé, on renvoie ce qui est affiché, puis l'app quitte.
@@ -72,21 +76,14 @@ export default function App() {
             disques.
           </div>
         )}
-        {page === "disques" && <DisksPage info={info} disks={disks} onRefresh={refresh} />}
+        {page === "accueil" && <HomePage disks={disks} go={go} />}
+        {page === "analyse" && <FullScanPage onRefreshDisks={refresh} />}
+        {page === "disques" && <DisksPage info={info} disks={disks} onRefresh={() => void refresh()} />}
         {page === "telephone" && <PhonePage />}
-        {!["disques", "telephone"].includes(page) && <ComingSoon title={NAV.find((n) => n.id === page)?.label ?? ""} />}
+        {page === "recuperation" && <RecoveryPage disks={disks} />}
+        {page === "rapports" && <ReportsPage />}
       </main>
     </div>
-  );
-}
-
-function ComingSoon({ title }: { title: string }) {
-  return (
-    <header className="page-header">
-      <div>
-        <h1>{title}</h1>
-      </div>
-    </header>
   );
 }
 

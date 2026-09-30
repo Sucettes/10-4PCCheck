@@ -18,6 +18,8 @@ import {
 import { formatBytes, formatHex, formatNumber, maskSerial, mediaLabel } from "./format";
 import { SelfTests } from "./SelfTests";
 import { SurfaceScan } from "./SurfaceScan";
+import { CapacityTest } from "./CapacityTest";
+import { ReportButton } from "./ReportButton";
 import { attributeLevel, lifeLevel, nvmeStatus, smartVerdict } from "./status";
 import type { AtaAttribute, AttributeStatus, Check, DiskInfo, NvmeHealth } from "./types";
 
@@ -27,11 +29,14 @@ const nf0 = new Intl.NumberFormat("fr-CA", { maximumFractionDigits: 0 });
 export function DiskDetail({ disk }: { disk: DiskInfo }) {
   return (
     <div className="detail">
-      <header>
-        <h2 className="detail-title">{disk.model ?? disk.device.info_name}</h2>
-        <p className="muted">
-          {formatBytes(disk.capacity_bytes)} · {mediaLabel(disk)} · {disk.device.info_name}
-        </p>
+      <header className="detail-header">
+        <div>
+          <h2 className="detail-title">{disk.model ?? disk.device.info_name}</h2>
+          <p className="muted">
+            {formatBytes(disk.capacity_bytes)} · {mediaLabel(disk)} · {disk.device.info_name}
+          </p>
+        </div>
+        <ReportButton command="save_disk_report" args={{ device: disk.device.name }} />
       </header>
 
       <section className="summary" aria-label="Résumé">
@@ -68,6 +73,7 @@ export function DiskDetail({ disk }: { disk: DiskInfo }) {
       </div>
 
       <SurfaceScan disk={disk} />
+      <CapacityTest disk={disk} />
 
       <TechSheet disk={disk} />
 

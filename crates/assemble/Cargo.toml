@@ -1,0 +1,15 @@
+[package]
+name = "pccheck-assemble"
+description = "10-4 PCCheck : construction des rapports (disque, téléphone, machine) à partir des mesures."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+pccheck-core = { path = "../core" }
+pccheck-inventory = { path = "../inventory" }
+pccheck-android = { path = "../android" }
+pccheck-report = { path = "../report" }
+serde.workspace = true
+serde_json.workspace = true

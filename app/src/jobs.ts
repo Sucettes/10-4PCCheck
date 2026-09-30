@@ -58,3 +58,20 @@ export function useJob<P, R>(id: string | null): [JobState<P, R>, (s: JobState<P
 export function isOk<R>(r: JobResult<R> | null): r is { ok: R } {
   return r !== null && "ok" in r;
 }
+
+/** Attend la fin d'une tâche déjà lancée (évènement `job-done`), pour enchaîner des étapes. */
+export async function waitForJob<R>(id: string): Promise<JobResult<R>> {
+  let resolve: (r: JobResult<R>) => void = () => {};
+  const done = new Promise<JobResult<R>>((r) => (resolve = r));
+  // Abonnement actif AVANT de lire l'état : une tâche qui finit entre les deux n'est pas perdue.
+  const unlisten = await listen<{ id: string; result: JobResult<R> }>("job-done", (e) => {
+    if (e.payload.id === id) resolve(e.payload.result);
+  });
+  try {
+    const s = await invoke<RawState>("job_state", { id });
+    if (!s.running && s.result) return s.result as JobResult<R>;
+    return await done;
+  } finally {
+    unlisten();
+  }
+}

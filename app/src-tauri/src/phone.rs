@@ -2,11 +2,12 @@
 
 use pccheck_android::{
     evaluate, manual_checklist, no_device_guidance, today, verdict, Adb, AdbDevice, AdbError,
-    ChecklistItem, Finding, FindingLevel, PhoneReport,
 };
+use pccheck_assemble::PhoneAnalysis;
 use serde::Serialize;
-use tauri::AppHandle;
+use tauri::{AppHandle, State};
 
+use crate::cache::Cache;
 use crate::{blocking, tool_dirs, CommandError};
 
 #[derive(Serialize)]
@@ -18,14 +19,6 @@ pub struct PhoneDevices {
     devices: Vec<AdbDevice>,
     /// Conseil à afficher quand aucun téléphone n'est prêt.
     guidance: String,
-}
-
-#[derive(Serialize)]
-pub struct PhoneAnalysis {
-    report: PhoneReport,
-    findings: Vec<Finding>,
-    verdict: FindingLevel,
-    checklist: Vec<ChecklistItem>,
 }
 
 fn adb(app: &AppHandle) -> Result<Adb, AdbError> {
@@ -67,7 +60,12 @@ pub async fn phone_devices(app: AppHandle) -> Result<PhoneDevices, CommandError>
 }
 
 #[tauri::command]
-pub async fn phone_collect(serial: String, app: AppHandle) -> Result<PhoneAnalysis, CommandError> {
+pub async fn phone_collect(
+    serial: String,
+    app: AppHandle,
+    cache: State<'_, Cache>,
+) -> Result<PhoneAnalysis, CommandError> {
+    let cache = cache.inner().clone();
     blocking(move || -> Result<PhoneAnalysis, CommandError> {
         let adb = adb(&app).map_err(|e| CommandError::Tool(e.to_string()))?;
         let report = adb
@@ -75,12 +73,14 @@ pub async fn phone_collect(serial: String, app: AppHandle) -> Result<PhoneAnalys
             .map_err(|e| CommandError::Tool(e.to_string()))?;
         let findings = evaluate(&report, today());
         let level = verdict(&findings);
-        Ok(PhoneAnalysis {
+        let analysis = PhoneAnalysis {
             report,
             findings,
             verdict: level,
             checklist: manual_checklist(),
-        })
+        };
+        cache.lock().phone = Some(analysis.clone());
+        Ok(analysis)
     })
     .await?
 }

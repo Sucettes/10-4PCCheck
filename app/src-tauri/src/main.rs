@@ -1,14 +1,19 @@
 // Pas de console en plus de la fenêtre sous Windows (en version finale).
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod cache;
 mod elevation;
 mod jobs;
+mod machine;
 mod phone;
+mod recover;
+mod reports;
 mod self_test;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use cache::Cache;
 use jobs::{JobState, Jobs};
 use pccheck_core::{capacity, surface};
 use pccheck_core::{DiskEntry, ScanDevice, SelfTestKind, SelfTestStatus, Smartctl, SmartctlError};
@@ -75,9 +80,14 @@ async fn app_info(state: State<'_, AppState>) -> Result<AppInfo, CommandError> {
 
 /// Liste et lit tous les disques (voir `Smartctl::scan_all`).
 #[tauri::command]
-async fn scan_disks(state: State<'_, AppState>) -> Result<Vec<DiskEntry>, CommandError> {
+async fn scan_disks(
+    state: State<'_, AppState>,
+    cache: State<'_, Cache>,
+) -> Result<Vec<DiskEntry>, CommandError> {
     let smartctl = state.smartctl.clone()?;
-    Ok(blocking(move || smartctl.scan_all()).await??)
+    let disks = blocking(move || smartctl.scan_all()).await??;
+    cache.lock().disks = disks.clone();
+    Ok(disks)
 }
 
 /// Lance un auto-test SMART. `device` vient de `scan_disks` : chemin et type passés en arguments
@@ -105,9 +115,13 @@ async fn abort_smart_test(
 async fn smart_test_status(
     device: ScanDevice,
     state: State<'_, AppState>,
+    cache: State<'_, Cache>,
 ) -> Result<SelfTestStatus, CommandError> {
     let smartctl = state.smartctl.clone()?;
-    Ok(blocking(move || smartctl.self_test_status(&device)).await??)
+    let name = device.name.clone();
+    let status = blocking(move || smartctl.self_test_status(&device)).await??;
+    cache.lock().self_tests.insert(name, status.clone());
+    Ok(status)
 }
 
 /// État d'une tâche longue (voir `jobs`). Tâche inconnue : état vide.
@@ -128,10 +142,18 @@ fn start_surface_scan(
     total_bytes: u64,
     app: AppHandle,
     jobs: State<'_, Arc<Jobs>>,
+    cache: State<'_, Cache>,
 ) -> Result<String, CommandError> {
     let id = format!("surface:{}", device.name);
+    let cache = cache.inner().clone();
     jobs.start(&app, id.clone(), move |ctx| {
-        surface::scan_device(&device.name, total_bytes, &ctx.cancel, |p| ctx.progress(p))
+        let result =
+            surface::scan_device(&device.name, total_bytes, &ctx.cancel, |p| ctx.progress(p))?;
+        cache
+            .lock()
+            .surface
+            .insert(device.name.clone(), result.clone());
+        Ok::<_, surface::SurfaceError>(result)
     })
     .map_err(CommandError::Internal)?;
     Ok(id)
@@ -143,10 +165,15 @@ fn start_capacity_test(
     path: String,
     app: AppHandle,
     jobs: State<'_, Arc<Jobs>>,
+    cache: State<'_, Cache>,
 ) -> Result<String, CommandError> {
     let id = "capacity".to_string();
+    let cache = cache.inner().clone();
     jobs.start(&app, id.clone(), move |ctx| {
-        capacity::run_capacity_test(Path::new(&path), None, &ctx.cancel, |p| ctx.progress(p))
+        let result =
+            capacity::run_capacity_test(Path::new(&path), None, &ctx.cancel, |p| ctx.progress(p))?;
+        cache.lock().capacity = Some(result.clone());
+        Ok::<_, capacity::CapacityError>(result)
     })
     .map_err(CommandError::Internal)?;
     Ok(id)
@@ -285,6 +312,7 @@ fn main() {
             }
             let smartctl = Smartctl::locate(&tool_dirs(app.handle()));
             app.manage(Arc::new(Jobs::default()));
+            app.manage(Cache::default());
             app.manage(AppState {
                 smartctl,
                 self_test,
@@ -303,6 +331,20 @@ fn main() {
             start_capacity_test,
             phone::phone_devices,
             phone::phone_collect,
+            machine::machine_inventory,
+            machine::start_cpu_stress,
+            machine::start_ram_test,
+            recover::recovery_status,
+            recover::recovery_trim_warning,
+            recover::start_recovery,
+            recover::recovery_found,
+            recover::open_folder,
+            reports::save_disk_report,
+            reports::save_phone_report,
+            reports::save_machine_report,
+            reports::preview_machine_report,
+            reports::list_reports,
+            reports::open_report_file,
             self_test_report
         ])
         .build(tauri::generate_context!());
