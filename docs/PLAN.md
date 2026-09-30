@@ -204,7 +204,7 @@ Règles :
 - Un bandeau de verdict en haut des écrans de résultat (icône, titre, résumé, compteurs OK / avertissements / critiques).
 - Typographie : Space Grotesk pour les titres et les chiffres clés, IBM Plex Sans pour le texte, IBM Plex Mono pour les valeurs brutes. Les polices seront embarquées dans l'app (pas de Google Fonts en ligne chez le vendeur).
 - Chaque état porte un libellé texte en plus de sa couleur (Bon, Usée, À négocier, Critique).
-- Cibles cliquables d'au moins 44 px.
+- Interface dense (demande du propriétaire, 2026-09-29) : texte de base 13 px, boutons et cibles cliquables de 30 à 32 px, marges réduites, grilles qui ajoutent des colonnes sur un écran large. C'est un outil de bureau utilisé à la souris : les 44 px des interfaces tactiles ne s'imposent pas.
 
 Palette :
 
