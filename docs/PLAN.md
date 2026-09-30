@@ -341,6 +341,13 @@ Claude vérifie tout ce qui peut l'être sans matériel réel. Le propriétaire 
 - **Formats non vérifiés sur du vrai matériel** : auto-tests SMART (surtout NVMe sous Windows), sorties adb (`dpm`, champs Samsung), PhotoRec réel, batterie de portable sous Windows. À confirmer au premier usage réel ; les analyseurs sont isolés et testés sur des sorties reconstruites.
 - **Outils tiers** : adb et PhotoRec ne sont pas dans le dépôt ; `tools/fetch-tools-windows.ps1` les télécharge depuis leurs sources officielles avec leurs sommes SHA-256. Pour Linux, placer `adb` et `photorec_static` dans `linux/tools/` de la clé.
 - **Runtime WebView2 fixe** : pris en charge par le code, jamais testé sur une machine sans WebView2.
+- **Revue de qualité du 2026-09-29, points laissés** (corrigés : voir l'historique git « Revue ... ») :
+  - Scan de surface : un disque débranché en cours de scan est compté illisible jusqu'à la fin, et la taille lue vient de smartctl (pas du périphérique ouvert). À faire : arrêt sur « périphérique absent », taille par `IOCTL_DISK_GET_LENGTH_INFO` / `BLKGETSIZE64`.
+  - Récupération ciblée (icat) : pas d'arrêt fichier par fichier ; fermer l'application arrête la copie (job Windows).
+  - Linux : les outils lancés ne sont pas arrêtés si l'application plante (les tâches le sont à une fermeture normale). `PR_SET_PDEATHSIG` écarté : il suit le fil qui a lancé l'outil, pas le processus.
+  - Destination sur un lecteur réseau (lettre) qui pointe vers un partage de cette machine : non détectée (les chemins `\\localhost\...` et `\\NOM-DU-PC\...` le sont).
+  - Test graphique : WebView2 peut rendre sur la carte intégrée d'un portable à deux cartes ; le moteur de rendu est affiché et la température n'est lue que pour une carte NVIDIA.
+- **Tests Linux** : `tools/dev/docker-linux-tests.sh` (moteur complet et tests réels avec les paquets Debian : PhotoRec/TestDisk 7.1, The Sleuth Kit 4.11).
 
 ---
 
@@ -352,7 +359,8 @@ Claude vérifie tout ce qui peut l'être sans matériel réel. Le propriétaire 
 4. Seuils du verdict (section 4) : à valider sur de vrais appareils.
 5. ~~Test de charge GPU~~ : **décidé : oui** (voir phase 3).
 6. ~~Nom final~~ : **décidé : PCCheck** (exécutable `PCCheck.exe`, AppImage `PCCheck.AppImage`, dossier `PCCheck/` sur la clé). Le dépôt garde son nom `10-4PCCheck`.
-7. Distribution Linux du live USB (phase 6) : deux propositions soumises au propriétaire (Ubuntu LTS, SystemRescue).
+7. Distribution Linux du live USB (phase 6) : deux propositions soumises au propriétaire (Ubuntu 24.04 LTS par défaut, SystemRescue en secours léger ; voir `docs/CLE-BOOTABLE.md`).
+8. Numéro de série du disque et de la machine dans les rapports : en clair aujourd'hui (utile pour comparer à l'étiquette, mais le rapport peut être partagé). Le téléphone, lui, est masqué. À trancher.
 
 ---
 
