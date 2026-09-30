@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::attributes::{self, AttributeStatus};
 use crate::checks::{self, Check};
+use crate::identify::AtaFeature;
 use crate::smartctl::SmartctlError;
 
 /// Seule version majeure du format JSON de smartctl prise en charge.
@@ -96,8 +97,13 @@ pub struct DiskInfo {
     pub sata_version: Option<String>,
     /// Vitesse actuelle du lien SATA (« 6.0 Gb/s »). Plus basse que prévu : câble, port ou pont USB.
     pub link_speed: Option<String>,
+    /// Vitesse maximale que le disque sait négocier (« 6.0 Gb/s ») : comparée à la vitesse
+    /// actuelle, elle dit si le port ou le câble le bride.
+    pub link_speed_max: Option<String>,
     pub form_factor: Option<String>,
     pub trim_supported: Option<bool>,
+    /// Fonctionnalités ATA (NCQ, AAM, APM...), `None` si non lues (NVMe, pont USB muet).
+    pub features: Option<Vec<AtaFeature>>,
     pub bytes_written: Option<u64>,
     pub bytes_read: Option<u64>,
     pub smart_available: Option<bool>,
@@ -210,6 +216,7 @@ struct RawString {
 #[derive(Debug, Deserialize)]
 struct RawInterfaceSpeed {
     current: Option<RawString>,
+    max: Option<RawString>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -419,11 +426,18 @@ impl RawOutput {
                 .sata_version
                 .map(|v| v.string)
                 .filter(|s| !s.is_empty()),
+            link_speed_max: self
+                .interface_speed
+                .as_ref()
+                .and_then(|i| i.max.as_ref())
+                .map(|m| m.string.clone())
+                .filter(|s| !s.is_empty()),
             link_speed: self
                 .interface_speed
                 .and_then(|i| i.current)
                 .map(|c| c.string)
                 .filter(|s| !s.is_empty()),
+            features: None,
             form_factor: self.form_factor.and_then(|f| f.name),
             trim_supported: self.trim.and_then(|t| t.supported),
             bytes_written,

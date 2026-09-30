@@ -46,6 +46,9 @@ fn sata_ssd_is_parsed_like_crystaldiskinfo() {
     );
     assert_eq!(d.sata_version.as_deref(), Some("SATA 3.2"));
     assert_eq!(d.link_speed.as_deref(), Some("6.0 Gb/s"));
+    assert_eq!(d.link_speed_max.as_deref(), Some("6.0 Gb/s"));
+    // Lu à part (smartctl --identify), jamais par parse_disk.
+    assert_eq!(d.features, None);
     assert_eq!(d.form_factor.as_deref(), Some("2.5 inches"));
     assert_eq!(d.trim_supported, Some(true));
     // Total_LBAs_Written x 512 octets.
