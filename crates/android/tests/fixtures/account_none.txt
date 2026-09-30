@@ -1,0 +1,10 @@
+User UserInfo{0:Owner:c13}:
+  Accounts: 0
+
+  AccountId, Action_type, timestamp, UID, TABLE_NAME
+  Accounts History
+
+  Active Sessions: 0
+
+  RegisteredServicesCache: 1 services
+    ServiceInfo: AuthenticatorDescription {type=com.google}, ComponentInfo{com.google.android.gms/com.google.android.gms.auth.authenticator.GoogleAuthenticator}, uid 10123

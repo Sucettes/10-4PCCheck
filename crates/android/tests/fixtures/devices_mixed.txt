@@ -1,0 +1,7 @@
+List of devices attached
+R58N00000XX            device usb:1-1 product:beyond1ltevl model:SM_G973W device:beyond1 transport_id:1
+0A000000000000         unauthorized usb:1-2 transport_id:2
+192.168.1.50:5555      offline product:panther model:Pixel_7 device:panther transport_id:3
+emulator-5554          device product:sdk_gphone64_x86_64 model:sdk_gphone64_x86_64 device:emu64xa transport_id:4
+00000000XXXX           recovery usb:1-4 transport_id:5
+

@@ -1,0 +1,25 @@
+User UserInfo{0:Propriétaire:c13}:
+  Accounts: 4
+    Account {name=compte1@example.com, type=com.google}
+    Account {name=compte2@example.com, type=com.google}
+    Account {name=compte3@example.com, type=com.samsung.account}
+    Account {name=WhatsApp, type=com.whatsapp}
+
+  AccountId, Action_type, timestamp, UID, TABLE_NAME
+  Accounts History
+  1,action_account_add,2024-03-02 10:11:12,1000,accounts
+  2,action_called_account_add,2024-03-02 10:11:40,10150,accounts
+
+  Active Sessions: 0
+
+  RegisteredServicesCache: 4 services
+    ServiceInfo: AuthenticatorDescription {type=com.google}, ComponentInfo{com.google.android.gms/com.google.android.gms.auth.authenticator.GoogleAuthenticator}, uid 10123
+    ServiceInfo: AuthenticatorDescription {type=com.samsung.account}, ComponentInfo{com.osp.app.signin/com.samsung.android.samsungaccount.authentication.service.AuthenticatorService}, uid 10150
+    ServiceInfo: AuthenticatorDescription {type=com.whatsapp}, ComponentInfo{com.whatsapp/com.whatsapp.accountsync.AccountAuthenticatorService}, uid 10200
+    ServiceInfo: AuthenticatorDescription {type=com.microsoft.workaccount}, ComponentInfo{com.azure.authenticator/com.microsoft.workaccount.AuthenticatorService}, uid 10210
+
+User UserInfo{10:Travail:1030}:
+  Accounts: 1
+    Account {name=compte4@example.com, type=com.microsoft.workaccount}
+
+  Active Sessions: 0

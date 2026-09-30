@@ -1,0 +1,4 @@
+Unknown command: list-owners
+dpm usage:
+dpm [subcommand] [options]
+usage: dpm set-active-admin [ --user <USER_ID> | current ] <COMPONENT>

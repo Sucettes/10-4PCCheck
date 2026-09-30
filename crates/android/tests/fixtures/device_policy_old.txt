@@ -1,0 +1,15 @@
+Current Device Policy Manager state:
+  Device Owner: 
+    admin=ComponentInfo{com.example.mdm/com.example.mdm.AdminReceiver}
+    name=
+    package=com.example.mdm
+    User ID: 0
+
+  Profile Owner (User 10): 
+    admin=ComponentInfo{com.example.work/com.example.work.ProfileAdmin}
+    name=Travail
+    package=com.example.work
+
+  Enabled Device Admins (User 0, provisioningState: 3):
+    com.example.mdm/.AdminReceiver:
+      uid=10180

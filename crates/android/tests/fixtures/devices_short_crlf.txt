@@ -1,0 +1,4 @@
+List of devices attached
+R58N00000XX	device
+0A000000000000	unauthorized
+
