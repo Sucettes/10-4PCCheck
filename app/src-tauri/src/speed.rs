@@ -157,6 +157,14 @@ pub fn speed_result(device: String, cache: State<'_, Cache>) -> Option<SpeedResu
     cache.lock().speed.get(&device).cloned()
 }
 
+/// Liaison PCIe d'un SSD NVMe (génération et voies), `None` s'il n'est pas sur un lien PCIe.
+#[tauri::command]
+pub async fn disk_pcie_link(
+    device: String,
+) -> Result<Option<pccheck_core::pcie::PcieLink>, CommandError> {
+    crate::blocking(move || pccheck_core::pcie::pcie_link(&device)).await
+}
+
 /// Liaison USB d'un disque (vitesse négociée, capacités, mode), `None` s'il n'est pas en USB.
 #[tauri::command]
 pub async fn disk_usb_link(

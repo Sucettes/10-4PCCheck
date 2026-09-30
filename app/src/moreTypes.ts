@@ -210,6 +210,14 @@ export interface SpeedScale {
 
 export type UsbSpeed = "usb1" | "usb2" | "gen1" | "gen2" | "gen2x2";
 
+/** Liaison PCIe d'un SSD NVMe (crates/core/src/pcie.rs). */
+export interface PcieLink {
+  current_gen: number;
+  current_lanes: number;
+  max_gen: number | null;
+  max_lanes: number | null;
+}
+
 export interface UsbLink {
   speed: UsbSpeed;
   device_capable: UsbSpeed | null;

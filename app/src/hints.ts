@@ -312,3 +312,22 @@ export const usbHint: HintText = {
     "Si l'adaptateur sait aller plus vite que la liaison actuelle, branche-le sur un port USB 3 (souvent bleu ou marqué SS) ou change de câble.",
   ],
 };
+
+export const transferHint: HintText = {
+  title: "Mode de transfert",
+  body: [
+    "Vitesse du lien entre le disque et l'ordinateur en ce moment, puis la plus haute que le disque sait négocier.",
+    "SATA : 1,5 Gb/s (SATA 1), 3,0 Gb/s (SATA 2, environ 280 Mo/s), 6,0 Gb/s (SATA 3, environ 550 Mo/s). Un lien plus lent que le maximum du disque vient du port de la carte mère, du câble ou d'un adaptateur.",
+    "NVMe : génération PCIe (3.0 environ 985 Mo/s par voie, 4.0 le double) et nombre de voies (x4 en général). Un SSD PCIe 4.0 dans un emplacement PCIe 3.0 est bridé à environ 3 500 Mo/s. Certaines machines baissent la vitesse du lien au repos pour économiser l'énergie.",
+  ],
+};
+
+export const featuresHint: HintText = {
+  title: "Fonctionnalités",
+  body: [
+    "Lues dans les données d'identification du disque (SATA seulement).",
+    "NCQ : le disque réordonne les demandes pour moins déplacer sa tête ; indispensable aux performances. TRIM : le système dit au SSD quels blocs sont libres. GPL : journaux étendus (SMART détaillé).",
+    "APM et AAM : gestion de l'énergie et du bruit, qui peuvent ralentir un disque dur. DevSleep : veille profonde des portables.",
+    "Cache d'écriture et lecture anticipée : accélèrent les accès ; normalement activés.",
+  ],
+};

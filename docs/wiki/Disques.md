@@ -43,11 +43,12 @@ Repères par type (débit) :
 
 Temps d'accès d'un disque dur : 7 200 tr/min bon ≤ 15 ms, acceptable ≤ 25 ms ; 5 400 tr/min bon ≤ 20 ms, acceptable ≤ 30 ms.
 
-## Liaison (SATA et USB)
+## Liaison (SATA, PCIe et USB)
 
 Un débit bridé par la liaison est marqué **« bridé par le port »**, pas « faible » :
 
 - port SATA ancien : SATA II environ 280 Mo/s au maximum ;
+- SSD NVMe dans un emplacement plus lent que lui (par exemple un SSD PCIe 4.0 dans un emplacement PCIe 3.0, environ 3 500 Mo/s) ;
 - USB : la vitesse **négociée** est la plus basse du port, du câble et de l'adaptateur.
 
 | Liaison USB | Débit réel maximal |
@@ -58,6 +59,20 @@ Un débit bridé par la liaison est marqué **« bridé par le port »**, pas «
 | USB 3.2 Gen 2x2 (20 Gb/s) | ~2 000 Mo/s |
 
 La fiche technique indique aussi le mode de transfert (UAS moderne, ou ancien mode plus lent sur les petits fichiers) et ce qui freine quand c'est possible de faire mieux : câble, port USB 2 (branche sur un port USB 3, souvent bleu), ou adaptateur.
+
+## Mode de transfert et fonctionnalités
+
+Dans la **fiche technique** d'un disque :
+
+- **Mode de transfert** : vitesse du lien en ce moment, et la plus haute que le disque sait négocier. SATA : 1,5, 3,0 ou 6,0 Gb/s. NVMe : génération PCIe et nombre de voies, par exemple « PCIe 4.0 x4 ». Un lien plus lent que ce que sait faire le disque est signalé (port, câble, adaptateur ou emplacement plus lent ; certaines machines baissent aussi le lien au repos pour économiser l'énergie).
+- **Fonctionnalités** (disques SATA) : NCQ, TRIM, S.M.A.R.T., GPL, APM, AAM, DevSleep, cache d'écriture, lecture anticipée, lues dans les données d'identification du disque. Une fonctionnalité prise en charge mais désactivée est indiquée.
+
+| Liaison | Débit réel maximal |
+|---|---|
+| SATA 2 (3,0 Gb/s) | ~280 Mo/s |
+| SATA 3 (6,0 Gb/s) | ~550 Mo/s |
+| PCIe 3.0 x4 | ~3 500 Mo/s |
+| PCIe 4.0 x4 | ~7 000 Mo/s |
 
 ## Scan de surface
 
