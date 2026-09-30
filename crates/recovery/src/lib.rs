@@ -24,7 +24,7 @@ pub mod tsk;
 pub mod volumes;
 
 pub use advice::{trim_warning, SUPPORT_HELP};
-pub use config::{build_args, FileFamily, RecoveryConfig, Source};
+pub use config::{build_args, build_args_for, FileFamily, PhotorecVersion, RecoveryConfig, Source};
 pub use console::{locate_console_tool, ConsoleTool, PtySession, Utf8Stream};
 pub use disk::{
     check_location, disk_from_smartctl_name, disk_from_smartctl_name_for, locate_destination,

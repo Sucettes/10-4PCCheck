@@ -31,7 +31,11 @@ fn tsk_lists_and_recovers_deleted_files_with_names() {
 
     let dest = image.with_file_name(format!("recup-{}", std::process::id()));
     let mut job = TskJob::spawn(
-        &tsk.join("tsk_recover.exe"),
+        &tsk.join(if cfg!(windows) {
+            "tsk_recover.exe"
+        } else {
+            "tsk_recover"
+        }),
         &[image.display().to_string()],
         &dest,
     )
@@ -70,7 +74,7 @@ fn tsk_lists_and_recovers_deleted_files_with_names() {
         },
     ];
     let r = extract_files(
-        &tsk.join("icat.exe"),
+        &tsk.join(if cfg!(windows) { "icat.exe" } else { "icat" }),
         &image.display().to_string(),
         &files,
         &picked,

@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use pccheck_core::process;
 use serde::Serialize;
 
-use crate::config::{build_args, RecoveryConfig, LOG_FILE_NAME};
+use crate::config::{build_args_for, PhotorecVersion, RecoveryConfig, LOG_FILE_NAME};
 use crate::disk::validate_destination;
 use crate::error::RecoveryError;
 use crate::log::{parse_log, read_log_tail, LogSummary};
@@ -94,6 +94,12 @@ struct JobState {
     cache: ScanCache,
 }
 
+/// Version du PhotoRec donné (`/version`, sans accès disque) ; `None` si illisible.
+pub fn photorec_version(photorec_path: &Path) -> Option<PhotorecVersion> {
+    let out = process::run(photorec_path, &["/version"], Duration::from_secs(10)).ok()?;
+    PhotorecVersion::parse(&out.stdout)
+}
+
 impl RecoveryJob {
     /// Vérifie la destination (autre disque que la source), crée le dossier et lance PhotoRec.
     pub fn start(
@@ -109,7 +115,7 @@ impl RecoveryJob {
                 reason: "le chemin contient des caractères non UTF-8".into(),
             });
         }
-        let args = build_args(&config);
+        let args = build_args_for(&config, photorec_version(photorec_path));
         Self::spawn(config, photorec_path, args)
     }
 

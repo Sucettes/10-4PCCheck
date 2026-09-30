@@ -118,6 +118,12 @@ pub struct RecoveryConfig {
 /// - Familles vides : traité comme « tout » (l'appelant doit refuser une liste vide avant).
 /// - Chemin non UTF-8 : converti avec perte ; `RecoveryJob::start` le refuse avant.
 pub fn build_args(config: &RecoveryConfig) -> Vec<String> {
+    build_args_for(config, Some(PhotorecVersion::LATEST_TESTED))
+}
+
+/// Comme [`build_args`], pour une version donnée de PhotoRec. Version inconnue : aucun format
+/// récent n'est nommé (quelques faux positifs valent mieux qu'une commande refusée en entier).
+pub fn build_args_for(config: &RecoveryConfig, version: Option<PhotorecVersion>) -> Vec<String> {
     let recup = config.destination.join(RECUP_DIR_PREFIX);
     vec![
         "/log".to_string(),
@@ -125,15 +131,47 @@ pub fn build_args(config: &RecoveryConfig) -> Vec<String> {
         recup.to_string_lossy().into_owned(),
         "/cmd".to_string(),
         config.source.device(),
-        command_list(config),
+        command_list(config, version),
     ]
 }
 
+/// Version de PhotoRec, lue par `photorec /version` (ligne « Version: 7.2 »).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+pub struct PhotorecVersion {
+    pub major: u32,
+    pub minor: u32,
+}
+
+impl PhotorecVersion {
+    /// Version livrée sur la clé (Windows) et validée par les tests réels.
+    pub const LATEST_TESTED: PhotorecVersion = PhotorecVersion { major: 7, minor: 2 };
+
+    /// « Version: 7.2 » ou, à défaut, la bannière « PhotoRec 7.1, Data Recovery Utility ».
+    /// Les suffixes de développement (« 7.3-WIP ») sont ignorés.
+    pub fn parse(text: &str) -> Option<PhotorecVersion> {
+        let raw = text
+            .lines()
+            .find_map(|l| l.trim().strip_prefix("Version:"))
+            .or_else(|| {
+                text.lines()
+                    .find_map(|l| l.trim().strip_prefix("PhotoRec "))
+                    .and_then(|r| r.split(',').next())
+            })?;
+        let mut parts = raw.trim().split(|c: char| !c.is_ascii_digit());
+        let major = parts.next()?.parse().ok()?;
+        let minor = parts.next().and_then(|m| m.parse().ok()).unwrap_or(0);
+        Some(PhotorecVersion { major, minor })
+    }
+}
+
 /// Formats désactivés même en mode « tout » : trop de faux positifs, aucun intérêt à l'achat.
-const NOISY_FORMATS: [&str; 1] = ["dovecot"];
+/// Chacun avec la première version qui le connaît : un nom inconnu fait refuser toute la
+/// commande (« Syntax error in command line », PhotoRec 7.1 de Debian et Ubuntu 24.04).
+const NOISY_FORMATS: [(&str, PhotorecVersion); 1] =
+    [("dovecot", PhotorecVersion { major: 7, minor: 2 })];
 
 /// Liste de commandes après le périphérique, séparées par des virgules.
-fn command_list(config: &RecoveryConfig) -> String {
+fn command_list(config: &RecoveryConfig, version: Option<PhotorecVersion>) -> String {
     let mut cmds: Vec<&str> = vec!["partition_none", "options"];
     cmds.push(if config.paranoid {
         "paranoid"
@@ -147,7 +185,11 @@ fn command_list(config: &RecoveryConfig) -> String {
         cmds.extend(["everything", "enable"]);
         // Faux positifs : PhotoRec prend les zones remplies de zéros pour des index de courriel
         // Dovecot (des centaines de fichiers inutiles sur une image de test de 64 Mo).
-        cmds.extend(NOISY_FORMATS.iter().flat_map(|f| [*f, "disable"]));
+        for (format, since) in NOISY_FORMATS {
+            if version.is_some_and(|v| v >= since) {
+                cmds.extend([format, "disable"]);
+            }
+        }
     } else {
         cmds.extend(["everything", "disable"]);
         for format in formats_of(&config.families) {
@@ -196,5 +238,53 @@ mod tests {
             // Une virgule dans un identifiant casserait la liste de commandes.
             assert!(formats.iter().all(|f| !f.contains(',') && !f.is_empty()));
         }
+    }
+
+    #[test]
+    fn photorec_version_is_read_from_version_line_or_banner() {
+        let debian = "PhotoRec 7.1, Data Recovery Utility, July 2019
+Christophe GRENIER
+
+Version: 7.1
+Compiler: GCC 12.2
+";
+        assert_eq!(
+            PhotorecVersion::parse(debian),
+            Some(PhotorecVersion { major: 7, minor: 1 })
+        );
+        let wip = "PhotoRec 7.3-WIP, Data Recovery Utility
+";
+        assert_eq!(
+            PhotorecVersion::parse(wip),
+            Some(PhotorecVersion { major: 7, minor: 3 })
+        );
+        assert_eq!(PhotorecVersion::parse("Syntax error"), None);
+    }
+
+    #[test]
+    fn formats_unknown_to_older_photorec_are_not_named() {
+        let config = RecoveryConfig {
+            source: Source::Partition {
+                device: "/dev/sdb".into(),
+                disk: DiskId::Block("sdb".into()),
+            },
+            destination: PathBuf::from("/media/cle/recup"),
+            families: vec![FileFamily::Everything],
+            paranoid: true,
+        };
+        let v71 = PhotorecVersion { major: 7, minor: 1 };
+        let cmds = build_args_for(&config, Some(v71)).pop().unwrap();
+        assert_eq!(
+            cmds,
+            "partition_none,options,paranoid,fileopt,everything,enable,search"
+        );
+        assert!(!build_args_for(&config, None)
+            .last()
+            .unwrap()
+            .contains("dovecot"));
+        assert!(build_args(&config)
+            .last()
+            .unwrap()
+            .contains("dovecot,disable"));
     }
 }

@@ -61,7 +61,12 @@ fn testdisk_runs_in_pseudo_terminal() {
         session.write(b"\x1b[1;1R").unwrap();
     }
     // Premier écran de TestDisk : création du journal ([ Create ] / [ Append ] / [ No Log ]).
-    let first = read_until(&rx, "Log", Duration::from_secs(15));
+    // Sous Linux (pas de ESC[6n), l'attente ci-dessus a déjà reçu le premier écran : on le garde.
+    let first = if hello.contains("Log") {
+        hello
+    } else {
+        hello + &read_until(&rx, "Log", Duration::from_secs(15))
+    };
     println!("--- écran 1 ({} octets) : {first:?}", first.len());
     assert!(first.contains("TestDisk"), "bannière TestDisk absente");
 
