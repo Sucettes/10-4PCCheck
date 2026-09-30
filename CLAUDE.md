@@ -19,7 +19,6 @@ La documentation fait partie de la fonctionnalité : **une pull request qui chan
 | Installation, clé USB, outils tiers | `docs/wiki/Installation.md`, `docs/LISEZMOI-CLE.txt`, `README.md` |
 | Commandes, organisation, convention, piège | Ce fichier (`CLAUDE.md`) et `docs/wiki/Développement.md` |
 | Décision, limite connue, question tranchée | `docs/PLAN.md` |
-| Capture d'écran devenue fausse | Les captures du wiki (voir `docs/wiki/`) |
 
 Le wiki GitHub est publié automatiquement depuis `docs/wiki/` à chaque mise à jour de `master` (job `wiki` de la CI) : ne le modifie jamais directement sur GitHub, ta modification serait écrasée. Liens entre pages : `[[Nom de la page]]`.
 
