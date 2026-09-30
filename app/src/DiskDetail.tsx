@@ -15,6 +15,8 @@ import {
   temperatureHint,
   trimHint,
   type HintText,
+  transferHint,
+  featuresHint,
   usbHint,
 } from "./hints";
 import { formatBytes, formatHex, formatNumber, mediaLabel } from "./format";
@@ -25,8 +27,8 @@ import { DiskAgePanel } from "./DiskAgePanel";
 import { SpeedTest } from "./SpeedTest";
 import { ReportButton } from "./ReportButton";
 import { attributeLevel, lifeLevel, nvmeStatus, smartVerdict } from "./status";
-import type { AtaAttribute, AttributeStatus, Check, DiskInfo, NvmeHealth } from "./types";
-import type { UsbLink, UsbSpeed } from "./moreTypes";
+import type { AtaAttribute, AtaFeature, AttributeStatus, Check, DiskInfo, NvmeHealth } from "./types";
+import type { PcieLink, UsbLink, UsbSpeed } from "./moreTypes";
 
 const nf0 = new Intl.NumberFormat("fr-CA", { maximumFractionDigits: 0 });
 
@@ -196,12 +198,52 @@ function usbText(l: UsbLink): string {
   return parts.join(" · ");
 }
 
+const PCIE_VERSIONS: Record<number, string> = { 1: "1.0", 2: "2.0", 3: "3.0", 4: "4.0", 5: "5.0", 6: "6.0" };
+const pcieLabel = (gen: number, lanes: number) => `PCIe ${PCIE_VERSIONS[gen] ?? "?"} x${lanes}`;
+
+/** « 6.0 Gb/s » → 6 ; pour comparer vitesse actuelle et maximale. */
+const gbps = (s: string | null) => (s ? Number.parseFloat(s) : Number.NaN);
+
+/** Mode de transfert : lien actuel, puis ce que le disque sait faire s'il est plus rapide. */
+function transferText(disk: DiskInfo, pcie: PcieLink | null): string | null {
+  if (pcie) {
+    const now = pcieLabel(pcie.current_gen, pcie.current_lanes);
+    const max = pcieLabel(pcie.max_gen ?? pcie.current_gen, pcie.max_lanes ?? pcie.current_lanes);
+    return now === max ? now : `${now} · le disque sait faire ${max} (emplacement plus lent, ou lien en économie d'énergie)`;
+  }
+  if (!disk.link_speed) return null;
+  if (!disk.link_speed_max || disk.link_speed_max === disk.link_speed) return disk.link_speed;
+  return gbps(disk.link_speed) < gbps(disk.link_speed_max)
+    ? `${disk.link_speed} · le disque sait faire ${disk.link_speed_max} (port, câble ou adaptateur plus lent)`
+    : `${disk.link_speed} (maximum ${disk.link_speed_max})`;
+}
+
+/** Fonctionnalités prises en charge, avec leur état quand la norme en a un. */
+function FeatureList({ features }: { features: AtaFeature[] }) {
+  const supported = features.filter((f) => f.supported);
+  if (supported.length === 0) return <span className="muted">Aucune déclarée</span>;
+  return (
+    <span className="feature-list">
+      {supported.map((f) => (
+        <span key={f.key} className={f.enabled === false ? "feature feature-off" : "feature"}>
+          {f.label}
+          {f.enabled === false && " (désactivé)"}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 function TechSheet({ disk }: { disk: DiskInfo }) {
   const [usb, setUsb] = useState<UsbLink | null>(null);
+  const [pcie, setPcie] = useState<PcieLink | null>(null);
   useEffect(() => {
     invoke<UsbLink | null>("disk_usb_link", { device: disk.device.name })
       .then(setUsb)
       .catch(() => setUsb(null));
+    invoke<PcieLink | null>("disk_pcie_link", { device: disk.device.name })
+      .then(setPcie)
+      .catch(() => setPcie(null));
   }, [disk.device.name]);
   const iface =
     disk.protocol === "nvme"
@@ -220,7 +262,9 @@ function TechSheet({ disk }: { disk: DiskInfo }) {
       ),
     },
     { label: "Interface", hint: interfaceHint(disk), value: iface ?? "Inconnue" },
+    { label: "Mode de transfert", hint: transferHint, value: transferText(disk, pcie) },
     { label: "Liaison USB", hint: usbHint, value: usb ? usbText(usb) : null },
+    { label: "Fonctionnalités", hint: featuresHint, value: disk.features ? <FeatureList features={disk.features} /> : null },
     { label: "Norme", hint: standardHint, value: disk.standard ?? "Inconnue" },
     { label: "Format", value: disk.form_factor },
     {

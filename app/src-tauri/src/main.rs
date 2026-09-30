@@ -430,6 +430,7 @@ fn main() {
             speed::disk_age,
             speed::speed_result,
             speed::disk_usb_link,
+            speed::disk_pcie_link,
             phone::phone_devices,
             phone::phone_collect,
             machine::machine_inventory,

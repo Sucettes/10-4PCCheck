@@ -279,6 +279,12 @@ fn speed_and_age_are_rated_on_the_disk_scale() {
     // 180 Mo/s en écriture pour un SSD SATA : faible.
     assert_eq!(item("Écriture").level, Level::Warn);
     assert!(item("Âge estimé").value.contains("étiquette : 2019"));
+    // Fiche du disque : mode de transfert (fixture SATA à 6.0 Gb/s).
+    assert!(rep
+        .subject
+        .details
+        .iter()
+        .any(|d| d.label == "Mode de transfert" && d.value == "6.0 Gb/s"));
     assert_eq!(item("Relecture (données réelles)").level, Level::Ok);
     // Un bloc relu différent de ce qui a été écrit : critique.
     assert_eq!(item("Données relues différentes").level, Level::Bad);
