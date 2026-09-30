@@ -86,25 +86,29 @@ pub(crate) fn recup_dirs(dest: &Path) -> Result<Vec<(u32, PathBuf)>, RecoveryErr
     Ok(dirs)
 }
 
-/// Plus grand numéro de `recup_dir.N` déjà présent (0 si aucun). Une nouvelle exécution de
-/// PhotoRec écrira à partir de ce numéro + 1.
-pub(crate) fn max_recup_index(dest: &Path) -> Result<u32, RecoveryError> {
-    Ok(recup_dirs(dest)?.last().map_or(0, |(i, _)| *i))
+/// Numéros des `recup_dir.N` déjà présents. PhotoRec prend ensuite le premier numéro libre à
+/// partir de 1 (un trou laissé par un dossier supprimé compris) : les dossiers d'une nouvelle
+/// exécution sont exactement ceux qui ne sont pas dans cet ensemble.
+pub(crate) fn existing_recup_indices(
+    dest: &Path,
+) -> Result<std::collections::BTreeSet<u32>, RecoveryError> {
+    Ok(recup_dirs(dest)?.into_iter().map(|(i, _)| i).collect())
 }
 
 /// Compte les fichiers des dossiers `recup_dir.N` avec `N >= first_index`.
 pub fn count_found(dest: &Path, first_index: u32) -> Result<FoundSummary, RecoveryError> {
-    count_found_cached(dest, first_index, &mut ScanCache::default())
+    count_found_cached(dest, |i| i >= first_index, &mut ScanCache::default())
 }
 
+/// Compte les fichiers des dossiers `recup_dir.N` dont le numéro est retenu par `keep`.
 pub(crate) fn count_found_cached(
     dest: &Path,
-    first_index: u32,
+    keep: impl Fn(u32) -> bool,
     cache: &mut ScanCache,
 ) -> Result<FoundSummary, RecoveryError> {
     let dirs: Vec<(u32, PathBuf)> = recup_dirs(dest)?
         .into_iter()
-        .filter(|(i, _)| *i >= first_index)
+        .filter(|(i, _)| keep(*i))
         .collect();
     let last = dirs.last().map(|(i, _)| *i);
 
@@ -252,14 +256,14 @@ mod tests {
 
         // Seul dossier : c'est le dossier courant, jamais mis en cache.
         assert_eq!(
-            count_found_cached(&dest, 1, &mut cache)
+            count_found_cached(&dest, |_| true, &mut cache)
                 .unwrap()
                 .files_found,
             1
         );
         fs::write(d1.join("f0000002.jpg"), b"b").unwrap();
         assert_eq!(
-            count_found_cached(&dest, 1, &mut cache)
+            count_found_cached(&dest, |_| true, &mut cache)
                 .unwrap()
                 .files_found,
             2
@@ -269,13 +273,13 @@ mod tests {
         let d2 = dest.join("recup_dir.2");
         fs::create_dir_all(&d2).unwrap();
         fs::write(d2.join("f0000003.png"), b"c").unwrap();
-        let s = count_found_cached(&dest, 1, &mut cache).unwrap();
+        let s = count_found_cached(&dest, |_| true, &mut cache).unwrap();
         assert_eq!(s.files_found, 3);
         assert_eq!(s.by_extension.get("jpg"), Some(&2));
         // Preuve du cache : un ajout tardif dans recup_dir.1 n'est plus relu.
         fs::write(d1.join("f0000009.jpg"), b"d").unwrap();
         assert_eq!(
-            count_found_cached(&dest, 1, &mut cache)
+            count_found_cached(&dest, |_| true, &mut cache)
                 .unwrap()
                 .files_found,
             3

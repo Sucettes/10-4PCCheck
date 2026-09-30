@@ -16,7 +16,7 @@
 
 use std::sync::OnceLock;
 
-use serde::Serialize;
+use serde::{Serialize, Serializer};
 use typst::diag::{FileError, FileResult, SourceDiagnostic};
 use typst::foundations::{Bytes, Datetime, Duration};
 use typst::syntax::{FileId, RootedPath, Source, VirtualPath, VirtualRoot};
@@ -70,6 +70,7 @@ fn messages(errs: &[SourceDiagnostic]) -> Vec<String> {
 /// (libellés, date, empreinte), pour garder le gabarit sans logique métier.
 #[derive(Serialize)]
 struct PdfData<'a> {
+    #[serde(serialize_with = "without_raw")]
     report: &'a Report,
     hash: String,
     date: String,
@@ -79,6 +80,14 @@ struct PdfData<'a> {
     level_labels: LevelLabels,
     /// Tableaux avec lignes normalisées, dans l'ordre des sections.
     tables: Vec<Vec<PdfTable<'a>>>,
+}
+
+/// Le gabarit n'affiche pas les données brutes : inutile de les faire analyser par Typst (elles
+/// peuvent peser plusieurs Mo). L'empreinte, elle, porte sur le rapport complet.
+fn without_raw<S: Serializer>(report: &&Report, s: S) -> Result<S::Ok, S::Error> {
+    let mut light = (*report).clone();
+    light.raw = serde_json::Value::Null;
+    light.serialize(s)
 }
 
 #[derive(Serialize)]

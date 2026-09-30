@@ -156,6 +156,60 @@ pub fn run(path: &Path, args: &[&str], timeout: Duration) -> Result<ProcessOutpu
     })
 }
 
+/// Windows : rattache l'application à un « job » qui arrête tous ses processus enfants quand
+/// elle se termine, même après un plantage ou un arrêt forcé : PhotoRec, icat, fls et les
+/// consoles ne continuent jamais seuls à lire un disque. Les enfants héritent du job à leur
+/// création ; un programme ouvert pour l'utilisateur s'en détache avec `CREATE_BREAKAWAY_FROM_JOB`
+/// (voir `detach_from_job`). Sans effet ailleurs (Linux : les tâches sont annulées à la
+/// fermeture ; `PR_SET_PDEATHSIG` suit le fil qui a lancé l'enfant, pas le processus, et
+/// tuerait les outils lancés depuis un fil de travail éphémère).
+pub fn kill_children_on_exit() {
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::Foundation::CloseHandle;
+        use windows_sys::Win32::System::JobObjects::{
+            AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
+            SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+            JOB_OBJECT_LIMIT_BREAKAWAY_OK, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+        };
+        use windows_sys::Win32::System::Threading::GetCurrentProcess;
+        // SAFETY : appels Win32 avec des pointeurs vers des variables locales ; la poignée du
+        // job n'est volontairement jamais fermée : c'est sa fermeture par le système, à la fin
+        // du processus, qui arrête les enfants.
+        unsafe {
+            let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+            if job.is_null() {
+                return;
+            }
+            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+            info.BasicLimitInformation.LimitFlags =
+                JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_BREAKAWAY_OK;
+            let ok = SetInformationJobObject(
+                job,
+                JobObjectExtendedLimitInformation,
+                (&info as *const JOBOBJECT_EXTENDED_LIMIT_INFORMATION).cast(),
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            );
+            if ok == 0 || AssignProcessToJobObject(job, GetCurrentProcess()) == 0 {
+                CloseHandle(job);
+            }
+        }
+    }
+}
+
+/// Programme ouvert pour l'utilisateur (explorateur, lecteur PDF) : hors du job de
+/// `kill_children_on_exit`, il reste ouvert après la fermeture de l'application.
+pub fn detach_from_job(cmd: &mut Command) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
+        cmd.creation_flags(CREATE_BREAKAWAY_FROM_JOB);
+    }
+    #[cfg(not(windows))]
+    let _ = cmd;
+}
+
 /// Pas de fenêtre de console qui clignote sous Windows quand l'app lance un outil.
 pub fn hide_console(cmd: &mut Command) {
     #[cfg(windows)]

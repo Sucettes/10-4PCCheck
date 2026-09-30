@@ -169,6 +169,11 @@ impl Adb {
         self.run(&["start-server"], SERVER_TIMEOUT).map(|_| ())
     }
 
+    /// Arrête le serveur adb (à la fermeture, s'il a été démarré par l'outil).
+    pub fn kill_server(&self) -> Result<(), AdbError> {
+        self.run(&["kill-server"], SERVER_TIMEOUT).map(|_| ())
+    }
+
     /// Téléphones vus par adb, avec leur état et une consigne s'ils ne sont pas prêts.
     /// Liste vide : voir `devices::no_device_guidance`.
     pub fn devices(&self) -> Result<Vec<AdbDevice>, AdbError> {

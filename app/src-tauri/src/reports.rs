@@ -133,6 +133,7 @@ pub(crate) fn open_with_system(path: &Path) -> std::io::Result<()> {
     let mut cmd = std::process::Command::new("explorer.exe");
     #[cfg(not(windows))]
     let mut cmd = std::process::Command::new("xdg-open");
+    pccheck_core::process::detach_from_job(&mut cmd);
     // L'explorateur renvoie souvent un code non nul même quand il a ouvert le fichier : on ne
     // vérifie que le lancement.
     cmd.arg(path).spawn().map(|_| ())

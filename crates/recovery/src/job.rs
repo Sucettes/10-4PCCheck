@@ -13,7 +13,7 @@ use crate::config::{build_args_for, PhotorecVersion, RecoveryConfig, LOG_FILE_NA
 use crate::disk::validate_destination;
 use crate::error::RecoveryError;
 use crate::log::{parse_log, read_log_tail, LogSummary};
-use crate::scan::{count_found_cached, max_recup_index, FoundFile, ScanCache};
+use crate::scan::{count_found_cached, existing_recup_indices, FoundFile, ScanCache};
 use crate::sys::ChildProcess;
 
 /// Variable d'environnement qui force le chemin de PhotoRec (tests, développement).
@@ -80,7 +80,8 @@ pub struct RecoveryJob {
     args: Vec<String>,
     started: Instant,
     /// Premier `recup_dir.N` de cette exécution (les précédents appartiennent à d'autres).
-    first_index: u32,
+    /// Dossiers `recup_dir.N` d'exécutions précédentes dans la même destination : non comptés.
+    previous: std::collections::BTreeSet<u32>,
     /// Taille du journal au lancement : le début concerne des exécutions précédentes.
     log_offset: u64,
     state: Mutex<JobState>,
@@ -137,14 +138,14 @@ impl RecoveryJob {
         // Seconde vérification sur le dossier réel (un point de montage a pu être traversé).
         validate_destination(config.source.disk(), dest)?;
 
-        let first_index = max_recup_index(dest)? + 1;
+        let previous = existing_recup_indices(dest)?;
         let log_offset = std::fs::metadata(dest.join(LOG_FILE_NAME)).map_or(0, |m| m.len());
         let child = ChildProcess::spawn(program, &args, dest)?;
         Ok(RecoveryJob {
             config,
             args,
             started: Instant::now(),
-            first_index,
+            previous,
             log_offset,
             state: Mutex::new(JobState {
                 child: Some(child),
@@ -174,7 +175,7 @@ impl RecoveryJob {
         let end = state.finished_at.unwrap_or_else(Instant::now);
         let (summary, scan_error) = match count_found_cached(
             &self.config.destination,
-            self.first_index,
+            |i| !self.previous.contains(&i),
             &mut state.cache,
         ) {
             Ok(s) => (s, None),
@@ -292,7 +293,16 @@ pub(crate) fn explain_end(
         return None;
     }
     if let Some(err) = log.and_then(|l| l.errors.last()) {
-        return Some(format!("PhotoRec signale une erreur : {err}"));
+        // Causes connues traduites ; le texte d'origine reste entre parenthèses pour le support.
+        let lower = err.to_ascii_lowercase();
+        let cause = if lower.contains("syntax error") {
+            "cette version de PhotoRec refuse la liste de types demandée"
+        } else if lower.contains("no space") || lower.contains("cannot write") {
+            "écriture impossible dans la destination (disque plein ou protégé en écriture)"
+        } else {
+            "erreur pendant la récupération"
+        };
+        return Some(format!("PhotoRec : {cause} ({err})"));
     }
     if log.is_some_and(|l| l.finished_normally) {
         return None;

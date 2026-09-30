@@ -16,9 +16,8 @@ use std::time::{Duration, Instant};
 use pccheck_core::process::{self, hide_console};
 use serde::Serialize;
 
-use crate::disk::validate_destination;
+use crate::disk::{locate_destination, validate_destination, DestinationLocation};
 use crate::error::RecoveryError;
-use crate::volumes::list_volumes;
 
 /// Variable d'environnement qui force le chemin de `tsk_recover` (tests, développement).
 pub const ENV_OVERRIDE: &str = "PCCHECK_TSK";
@@ -118,7 +117,9 @@ pub fn list_deleted(tsk_dir: &Path, device: &str) -> Result<DeletedList, Recover
 }
 
 /// Analyse `fls -r -d -p -l` : `r/r * 4:<TAB>chemin<TAB>mtime<TAB>atime<TAB>ctime<TAB>crtime<TAB>taille<TAB>uid<TAB>gid`.
-/// Les métafichiers (`$MBR`, `$FAT1`, `$OrphanFiles`, type `v/v`) sont ignorés.
+/// Ignorés : les métafichiers (type `v/v`, `$MFT`, `$FAT1`...) et les entrées `(realloc)`, dont
+/// le numéro sert déjà à un autre fichier (icat rendrait le contenu de celui-ci). Gardés : la
+/// Corbeille vidée (`$RECYCLE.BIN/...`) et les orphelins FAT (`$OrphanFiles/...`).
 pub fn parse_fls(text: &str) -> Vec<DeletedFile> {
     text.lines()
         .filter_map(|line| {
@@ -132,9 +133,12 @@ pub fn parse_fls(text: &str) -> Vec<DeletedFile> {
                 .find(|p| *p != "*")?
                 .trim_end_matches(':')
                 .to_string();
+            if !valid_inode(&inode) {
+                return None;
+            }
             let cols: Vec<&str> = rest.split('\t').collect();
             let path = cols.first()?.to_string();
-            if path.is_empty() || path.starts_with('$') {
+            if path.is_empty() || is_metafile(&path) {
                 return None;
             }
             let modified = cols
@@ -150,6 +154,23 @@ pub fn parse_fls(text: &str) -> Vec<DeletedFile> {
             })
         })
         .collect()
+}
+
+/// Adresse de métadonnée acceptée par icat : `123`, `123-128` ou `123-128-4` (NTFS). Tout le
+/// reste est refusé, dont `123(realloc)` et un `-x` qui serait lu comme une option.
+fn valid_inode(inode: &str) -> bool {
+    let parts: Vec<&str> = inode.split('-').collect();
+    parts.len() <= 3
+        && parts
+            .iter()
+            .all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()))
+}
+
+/// Métafichier du système de fichiers : premier élément commençant par `$`, sauf la Corbeille
+/// et le dossier virtuel des orphelins.
+fn is_metafile(path: &str) -> bool {
+    let first = path.split('/').next().unwrap_or(path);
+    first.starts_with('$') && !first.eq_ignore_ascii_case("$RECYCLE.BIN") && first != "$OrphanFiles"
 }
 
 /// `Files Recovered: 12` à la fin de la sortie de `tsk_recover`.
@@ -179,7 +200,15 @@ pub struct TskJob {
     output: std::sync::Arc<std::sync::Mutex<String>>,
     exit_code: Option<i32>,
     stopped_by_user: bool,
+    /// Fichiers et octets déjà présents dans `dest` au lancement : non comptés.
+    baseline: (u64, u64),
+    /// Dernier comptage, refait au plus toutes les `RECOUNT_EVERY`.
+    counted: (u64, u64),
+    counted_at: Option<Instant>,
 }
+
+/// Parcourir toute la destination coûte cher sur une clé USB lente avec beaucoup de fichiers.
+const RECOUNT_EVERY: Duration = Duration::from_secs(2);
 
 impl TskJob {
     /// Lance la récupération des fichiers supprimés du volume `mount` (racine, ex. `E:\`) vers
@@ -191,6 +220,7 @@ impl TskJob {
 
     /// Lancement brut (tests : image disque au lieu d'un volume).
     pub fn spawn(program: &Path, source: &[String], dest: &Path) -> Result<TskJob, RecoveryError> {
+        let baseline = count_files(dest);
         let mut cmd = Command::new(program);
         cmd.args(source)
             .arg(dest)
@@ -220,6 +250,9 @@ impl TskJob {
             output,
             exit_code: None,
             stopped_by_user: false,
+            baseline,
+            counted: baseline,
+            counted_at: None,
         })
     }
 
@@ -229,7 +262,13 @@ impl TskJob {
                 self.exit_code = Some(status.code().unwrap_or(-1));
             }
         }
-        let (files_found, bytes_found) = count_files(&self.dest);
+        let finished = self.exit_code.is_some();
+        if finished || self.counted_at.is_none_or(|t| t.elapsed() >= RECOUNT_EVERY) {
+            self.counted = count_files(&self.dest);
+            self.counted_at = Some(Instant::now());
+        }
+        let files_found = self.counted.0.saturating_sub(self.baseline.0);
+        let bytes_found = self.counted.1.saturating_sub(self.baseline.1);
         let reported = self
             .output
             .lock()
@@ -268,19 +307,36 @@ fn prepare(mount: &Path, dest: &Path) -> Result<String, RecoveryError> {
         path: mount.to_path_buf(),
         reason: "volume introuvable".into(),
     })?;
-    let source_disk = list_volumes()
-        .into_iter()
-        .find(|v| v.path == mount)
-        .and_then(|v| v.disk)
-        .ok_or_else(|| RecoveryError::DestinationDiskUnknown {
-            path: mount.to_path_buf(),
-            reason: "disque physique du volume source inconnu".into(),
-        })?;
-    validate_destination(&source_disk, dest)?;
+    // Disque(s) du volume source résolus directement : la liste des volumes sert aux
+    // destinations et écarte les volumes en lecture seule, justement les bons cas de source
+    // (carte SD verrouillée, montage `ro`).
+    let source_disks = match locate_destination(mount)? {
+        DestinationLocation::Disks { disks } if !disks.is_empty() => disks,
+        DestinationLocation::Unknown { reason } => {
+            return Err(RecoveryError::SourceDiskUnknown {
+                path: mount.to_path_buf(),
+                reason,
+            })
+        }
+        _ => {
+            return Err(RecoveryError::SourceDiskUnknown {
+                path: mount.to_path_buf(),
+                reason: "volume réseau ou sans disque".into(),
+            })
+        }
+    };
+    let check = || {
+        source_disks
+            .iter()
+            .try_for_each(|d| validate_destination(d, dest))
+    };
+    check()?;
     std::fs::create_dir_all(dest).map_err(|e| RecoveryError::CreateDestination {
         path: dest.to_path_buf(),
         reason: e.to_string(),
     })?;
+    // Seconde vérification sur le dossier réel (un point de montage a pu être traversé).
+    check()?;
     Ok(device)
 }
 
@@ -318,7 +374,10 @@ pub fn safe_relative_path(original: &str) -> PathBuf {
             })
             .collect();
         // Noms finissant par un point ou une espace : refusés par Windows.
-        let clean = clean.trim_end_matches(['.', ' ']).to_string();
+        let mut clean = clean.trim_end_matches(['.', ' ']).to_string();
+        if is_reserved_windows_name(&clean) {
+            clean.insert(0, '_');
+        }
         if !clean.is_empty() {
             out.push(clean);
         }
@@ -327,6 +386,58 @@ pub fn safe_relative_path(original: &str) -> PathBuf {
         out.push("sans-nom");
     }
     out
+}
+
+/// Noms de périphériques de Windows (`NUL.txt` écrirait dans le vide, `COM1` ouvrirait un port
+/// série), quelle que soit la casse et l'extension, y compris `COM¹` et `CONIN$`.
+fn is_reserved_windows_name(name: &str) -> bool {
+    let stem = name
+        .split('.')
+        .next()
+        .unwrap_or(name)
+        .trim_end()
+        .to_uppercase();
+    let port = |p: &str| {
+        stem.strip_prefix(p).is_some_and(|n| {
+            n.len() <= 2
+                && matches!(n.chars().next(), Some('0'..='9' | '¹' | '²' | '³'))
+                && n.chars().count() == 1
+        })
+    };
+    matches!(
+        stem.as_str(),
+        "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
+    ) || port("COM")
+        || port("LPT")
+}
+
+/// Chemin libre : `nom.ext`, sinon `nom (2).ext`, `nom (3).ext`... Plusieurs fichiers supprimés
+/// portent souvent le même nom (versions successives d'un document, première lettre effacée
+/// sous FAT) : aucun ne doit en écraser un autre.
+fn create_unique(target: &Path) -> std::io::Result<(PathBuf, std::fs::File)> {
+    let stem = target
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let ext = target
+        .extension()
+        .map(|e| format!(".{}", e.to_string_lossy()))
+        .unwrap_or_default();
+    let mut candidate = target.to_path_buf();
+    for n in 2..10_000 {
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&candidate)
+        {
+            Ok(f) => return Ok((candidate, f)),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                candidate = target.with_file_name(format!("{stem} ({n}){ext}"));
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    Err(std::io::ErrorKind::AlreadyExists.into())
 }
 
 /// Récupère seulement les fichiers choisis, avec `icat -r`, à leur chemin d'origine sous `dest`.
@@ -354,12 +465,16 @@ pub fn extract_files(
         failed: Vec::new(),
     };
     for f in files {
-        let target = dest.join(safe_relative_path(&f.path));
+        let wanted = dest.join(safe_relative_path(&f.path));
         let outcome = (|| -> Result<u64, String> {
-            if let Some(parent) = target.parent() {
+            // L'adresse vient de l'interface : jamais passée à icat si elle n'en est pas une.
+            if !valid_inode(&f.inode) {
+                return Err("adresse de fichier invalide".into());
+            }
+            if let Some(parent) = wanted.parent() {
                 std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
             }
-            let file = std::fs::File::create(&target).map_err(|e| e.to_string())?;
+            let (target, file) = create_unique(&wanted).map_err(|e| e.to_string())?;
             let mut cmd = Command::new(icat);
             cmd.args(["-r", source, &f.inode])
                 .stdin(Stdio::null())
@@ -487,5 +602,51 @@ v/v 523251:\t$MBR\t0000-00-00 00:00:00 (UTC)\t\t\t\t512\t0\t0\n";
         assert_eq!(volume_device(Path::new(r"E:\")).as_deref(), Some(r"\\.\E:"));
         assert_eq!(volume_device(Path::new("d:")).as_deref(), Some(r"\\.\D:"));
         assert_eq!(volume_device(Path::new(r"E:\dossier")), None);
+    }
+
+    #[test]
+    fn recycle_bin_and_orphans_are_kept_realloc_and_metafiles_are_not() {
+        let text = "r/r * 70-128-2:\t$RECYCLE.BIN/S-1-5-21-1/$R3AB12.jpg\t2025-09-01 00:00:00 (UTC)\t\t\t\t2048\t0\t0\n\
+r/r * 71-128-1:\t$MFT\t2025-09-01 00:00:00 (UTC)\t\t\t\t4096\t0\t0\n\
+r/r * 123(realloc):\tAncien.docx\t2025-09-01 00:00:00 (UTC)\t\t\t\t10\t0\t0\n\
+r/r * 900:\t$OrphanFiles/_ICHIER.TXT\t2025-09-01 00:00:00 (UTC)\t\t\t\t5\t0\t0\n";
+        let paths: Vec<String> = parse_fls(text).into_iter().map(|f| f.path).collect();
+        assert_eq!(
+            paths,
+            [
+                "$RECYCLE.BIN/S-1-5-21-1/$R3AB12.jpg",
+                "$OrphanFiles/_ICHIER.TXT"
+            ]
+        );
+        assert!(valid_inode("70-128-2") && valid_inode("5"));
+        assert!(!valid_inode("-x") && !valid_inode("1-2-3-4") && !valid_inode("12a"));
+    }
+
+    #[test]
+    fn windows_device_names_are_renamed() {
+        assert_eq!(
+            safe_relative_path("docs/NUL.txt"),
+            PathBuf::from("docs").join("_NUL.txt")
+        );
+        assert_eq!(safe_relative_path("com1"), PathBuf::from("_com1"));
+        assert_eq!(safe_relative_path("COM¹.log"), PathBuf::from("_COM¹.log"));
+        assert_eq!(
+            safe_relative_path("CONSOLE.txt"),
+            PathBuf::from("CONSOLE.txt")
+        );
+        assert_eq!(safe_relative_path("COM10"), PathBuf::from("COM10"));
+    }
+
+    #[test]
+    fn same_name_files_do_not_overwrite_each_other() {
+        let dir = std::env::temp_dir().join(format!("pccheck-unique-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("Rapport.docx");
+        let (a, _) = create_unique(&target).unwrap();
+        let (b, _) = create_unique(&target).unwrap();
+        assert_eq!(a, target);
+        assert_eq!(b, dir.join("Rapport (2).docx"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

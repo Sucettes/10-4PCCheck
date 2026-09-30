@@ -11,6 +11,8 @@ use pccheck_report::{
 use serde::{Deserialize, Serialize};
 
 const TOOL_VERSION: &str = env!("CARGO_PKG_VERSION");
+/// Lignes du tableau des fichiers illisibles dans le rapport.
+const FAILED_ROWS_MAX: usize = 200;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -132,10 +134,24 @@ pub fn build_recovery_report(s: &RecoverySession) -> Report {
     }
     if !s.failed.is_empty() {
         let mut failed = Section::new("illisibles", "Fichiers illisibles");
+        // Des milliers de lignes feraient un PDF de centaines de pages : la liste complète
+        // reste dans les données brutes (JSON).
+        let mut rows: Vec<Vec<String>> = s
+            .failed
+            .iter()
+            .take(FAILED_ROWS_MAX)
+            .map(|f| vec![f.clone()])
+            .collect();
+        if s.failed.len() > FAILED_ROWS_MAX {
+            rows.push(vec![format!(
+                "… et {} autres (liste complète dans le fichier JSON)",
+                fmt_int((s.failed.len() - FAILED_ROWS_MAX) as u64)
+            )]);
+        }
         failed.tables.push(Table {
             title: "Chemins d'origine".into(),
             columns: vec!["Fichier".into()],
-            rows: s.failed.iter().map(|f| vec![f.clone()]).collect(),
+            rows,
         });
         rep.sections.push(failed);
     }

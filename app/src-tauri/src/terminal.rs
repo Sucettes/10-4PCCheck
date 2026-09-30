@@ -24,6 +24,20 @@ pub struct Terminals {
     next: AtomicU32,
 }
 
+impl Terminals {
+    /// Arrête toutes les consoles (fermeture de l'application).
+    pub fn close_all(&self) {
+        if let Ok(mut sessions) = self.sessions.lock() {
+            for (_, mut s) in sessions.drain() {
+                s.kill();
+            }
+        }
+    }
+}
+
+/// Intervalle de vérification de la fin de l'outil.
+const WATCH_EVERY: std::time::Duration = std::time::Duration::from_millis(200);
+
 #[derive(Clone, Serialize)]
 struct Output<'a> {
     id: u32,
@@ -69,10 +83,36 @@ pub fn terminal_open(
         .insert(id, session);
 
     let terms = terms.inner().clone();
+    let exit_code = Arc::new(Mutex::new(None::<u32>));
+
+    // Surveillance de la fin de l'outil. Sous Windows, la sortie du pseudo-terminal (ConPTY) ne
+    // se ferme qu'à la libération de la session : sans ce fil, la lecture ci-dessous attendrait
+    // indéfiniment une fin qui dépend d'elle. La session libérée, la lecture reçoit la fin.
+    {
+        let terms = terms.clone();
+        let exit_code = exit_code.clone();
+        std::thread::spawn(move || loop {
+            std::thread::sleep(WATCH_EVERY);
+            let Ok(mut sessions) = terms.sessions.lock() else {
+                return;
+            };
+            let Some(session) = sessions.get_mut(&id) else {
+                return; // fermée par `terminal_close` ou par la lecture
+            };
+            if let Some(code) = session.try_wait() {
+                *exit_code.lock().unwrap_or_else(|p| p.into_inner()) = Some(code);
+                let session = sessions.remove(&id);
+                drop(sessions);
+                drop(session);
+                return;
+            }
+        });
+    }
+
     std::thread::spawn(move || {
         let mut utf8 = Utf8Stream::default();
         let mut buf = [0u8; 8192];
-        // Lecture bloquante jusqu'à la fin de l'outil (EOF) ou une erreur.
+        // Lecture bloquante jusqu'à la fin de la sortie (EOF) ou une erreur.
         while let Ok(n) = reader.read(&mut buf) {
             if n == 0 {
                 break;
@@ -82,12 +122,14 @@ pub fn terminal_open(
                 let _ = app.emit("terminal-output", Output { id, data: &text });
             }
         }
-        let code = terms
+        // Linux : la fin de sortie arrive d'abord, la session est encore là.
+        let from_session = terms
             .sessions
             .lock()
             .ok()
             .and_then(|mut s| s.remove(&id))
             .and_then(|mut s| s.try_wait());
+        let code = from_session.or(*exit_code.lock().unwrap_or_else(|p| p.into_inner()));
         let _ = app.emit("terminal-exit", Exit { id, code });
     });
     Ok(id)
@@ -154,6 +196,8 @@ pub fn open_console_window(tool: ConsoleTool, app: AppHandle) -> Result<(), Comm
     {
         // Linux : l'émulateur de terminal par défaut de la distribution (Debian, Ubuntu, Mint).
         cmd = {
+            // Politique Debian : `-e` prend le programme et ses arguments séparés, sans shell
+            // (xterm, gnome-terminal.wrapper) : un chemin avec espaces passe tel quel.
             let mut t = std::process::Command::new("x-terminal-emulator");
             t.arg("-e").arg(&exe).current_dir(workdir());
             t

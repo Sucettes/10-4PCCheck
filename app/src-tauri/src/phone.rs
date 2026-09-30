@@ -3,6 +3,11 @@
 use pccheck_android::{
     evaluate, manual_checklist, no_device_guidance, today, verdict, Adb, AdbDevice, AdbError,
 };
+use std::net::{SocketAddr, TcpStream};
+use std::path::PathBuf;
+use std::sync::Mutex;
+use std::time::Duration;
+
 use pccheck_assemble::PhoneAnalysis;
 use serde::Serialize;
 use tauri::{AppHandle, State};
@@ -25,6 +30,30 @@ fn adb(app: &AppHandle) -> Result<Adb, AdbError> {
     Adb::locate(&tool_dirs(app))
 }
 
+/// adb qui a démarré le serveur, si c'est l'outil. Arrêté à la fermeture : sinon `adb.exe`
+/// reste lancé depuis la clé (impossible à éjecter) et écoute sur le PC du vendeur. Un serveur
+/// qui tournait déjà (Android Studio) n'est jamais arrêté.
+static STARTED_SERVER: Mutex<Option<PathBuf>> = Mutex::new(None);
+
+/// Port par défaut du serveur adb.
+const ADB_PORT: u16 = 5037;
+
+fn server_running() -> bool {
+    let addr = SocketAddr::from(([127, 0, 0, 1], ADB_PORT));
+    TcpStream::connect_timeout(&addr, Duration::from_millis(300)).is_ok()
+}
+
+/// Arrête le serveur adb s'il a été démarré par l'outil.
+pub fn stop_adb_server() {
+    let started = STARTED_SERVER
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .take();
+    if let Some(path) = started {
+        let _ = Adb::new(path).kill_server();
+    }
+}
+
 #[tauri::command]
 pub async fn phone_devices(app: AppHandle) -> Result<PhoneDevices, CommandError> {
     blocking(move || {
@@ -41,7 +70,13 @@ pub async fn phone_devices(app: AppHandle) -> Result<PhoneDevices, CommandError>
             }
         };
         let version = adb.version().ok().map(|v| v.release.unwrap_or(v.protocol));
-        match adb.devices() {
+        let was_running = server_running();
+        let devices = adb.devices();
+        if !was_running && server_running() {
+            *STARTED_SERVER.lock().unwrap_or_else(|p| p.into_inner()) =
+                Some(adb.path().to_path_buf());
+        }
+        match devices {
             Ok(devices) => PhoneDevices {
                 adb_version: version,
                 adb_error: None,

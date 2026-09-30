@@ -384,6 +384,8 @@ fn main() {
 
     #[cfg(windows)]
     use_bundled_webview2();
+    // Avant tout lancement d'outil : les enfants héritent du job à leur création.
+    pccheck_core::process::kill_children_on_exit();
 
     if let Some(output) = &self_test {
         self_test::arm_deadline(output.clone());
@@ -459,9 +461,14 @@ fn main() {
         // Fermeture : on annule les tâches et on leur laisse le temps de nettoyer
         // (fichiers du test de capacité, processus PhotoRec).
         if let tauri::RunEvent::Exit = event {
+            if let Some(terms) = handle.try_state::<Arc<terminal::Terminals>>() {
+                terms.close_all();
+            }
+            phone::stop_adb_server();
             if let Some(jobs) = handle.try_state::<Arc<Jobs>>() {
                 jobs.cancel_all();
-                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+                // Supprimer plusieurs Go de fichiers de test sur une clé lente prend du temps.
+                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
                 while jobs.any_running() && std::time::Instant::now() < deadline {
                     std::thread::sleep(std::time::Duration::from_millis(50));
                 }

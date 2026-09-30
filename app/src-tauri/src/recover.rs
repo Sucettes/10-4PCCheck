@@ -90,7 +90,7 @@ pub fn recovery_trim_warning(is_ssd: bool, trim_supported: Option<bool>) -> Opti
 /// La vérification de la destination et le lancement ont lieu tout de suite : une erreur
 /// (même disque, PhotoRec absent) revient directement à l'écran.
 #[tauri::command]
-pub fn start_recovery(
+pub async fn start_recovery(
     disk: String,
     destination: String,
     families: Vec<FileFamily>,
@@ -99,6 +99,12 @@ pub fn start_recovery(
     jobs: State<'_, Arc<Jobs>>,
     cache: State<'_, Cache>,
 ) -> Result<String, CommandError> {
+    // Vérifié avant de lancer quoi que ce soit : un double clic ne démarre pas un second PhotoRec.
+    if jobs.is_running("recovery") {
+        return Err(CommandError::Tool(
+            "une récupération est déjà en cours".into(),
+        ));
+    }
     let source = disk_label(&cache, &disk);
     let family_labels: Vec<String> = families
         .iter()
@@ -114,7 +120,11 @@ pub fn start_recovery(
         families,
         paranoid,
     };
-    let mut job = RecoveryJob::start(config, &photorec).map_err(tool_err)?;
+    // Accès disque (vérification de la destination, version de PhotoRec) : hors du fil principal,
+    // qui gèlerait l'interface sur un disque lent.
+    let mut job = crate::blocking(move || RecoveryJob::start(config, &photorec))
+        .await?
+        .map_err(tool_err)?;
     jobs.start(&app, "recovery".into(), move |ctx| {
         let p = loop {
             if ctx.cancel.load(Ordering::Relaxed) {
@@ -188,16 +198,24 @@ pub async fn tsk_list(volume: String, app: AppHandle) -> Result<DeletedList, Com
 /// Récupère les fichiers supprimés du volume `volume` vers `destination` (autre disque).
 /// Identifiant de tâche : `tsk`.
 #[tauri::command]
-pub fn start_tsk(
+pub async fn start_tsk(
     volume: String,
     destination: String,
     app: AppHandle,
     jobs: State<'_, Arc<Jobs>>,
     cache: State<'_, Cache>,
 ) -> Result<String, CommandError> {
+    if jobs.is_running("tsk") {
+        return Err(CommandError::Tool(
+            "une récupération est déjà en cours".into(),
+        ));
+    }
     let tsk = locate_tsk(&tool_dirs(&app)).map_err(tool_err)?;
     let dest = PathBuf::from(&destination);
-    let mut job = TskJob::start(&tsk, &PathBuf::from(&volume), &dest).map_err(tool_err)?;
+    let (source, target) = (PathBuf::from(&volume), dest.clone());
+    let mut job = crate::blocking(move || TskJob::start(&tsk, &source, &target))
+        .await?
+        .map_err(tool_err)?;
     let cache = cache.inner().clone();
     jobs.start(&app, "tsk".into(), move |ctx| {
         let p = loop {
@@ -214,16 +232,27 @@ pub fn start_tsk(
             }
             std::thread::sleep(POLL);
         };
+        // tsk_recover sort en erreur sur un volume chiffré, un système de fichiers inconnu ou
+        // sans droits : le rapport ne doit pas annoncer une réussite.
+        let problem = match p.exit_code {
+            Some(code) if code != 0 && !p.stopped_by_user => Some(format!(
+                "tsk_recover s'est arrêté en erreur (code {code}) : volume chiffré (BitLocker), \
+                 système de fichiers non reconnu ou droits administrateur manquants"
+            )),
+            _ => None,
+        };
         cache.lock().recovery = Some(RecoverySession {
             method: RecoveryMethod::SleuthKitAll,
             source: volume,
             destination,
             duration_s: p.elapsed_s,
-            files: p.files_found,
+            // Compte annoncé par tsk_recover quand il existe : il ne dépend pas des fichiers
+            // déjà présents dans la destination.
+            files: p.reported.unwrap_or(p.files_found),
             bytes: p.bytes_found,
             by_extension: count_by_extension(&dest),
             stopped_by_user: p.stopped_by_user,
-            problem: None,
+            problem,
             failed: Vec::new(),
             families: Vec::new(),
             tool: None,

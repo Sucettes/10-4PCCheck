@@ -10,6 +10,7 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use serde_json::Value;
@@ -43,15 +44,22 @@ struct DoneEvent<'a> {
     result: &'a Value,
 }
 
+/// Écart minimal entre deux événements de progression : au-delà, l'interface redessine
+/// l'écran pour rien (le test RAM publie un point toutes les ~10 ms).
+const EMIT_EVERY: Duration = Duration::from_millis(150);
+
 /// Transmis à la tâche : drapeau d'annulation et publication de la progression.
 pub struct JobContext {
     id: String,
     app: AppHandle,
     jobs: Arc<Jobs>,
     pub cancel: Arc<AtomicBool>,
+    last_emit: Mutex<Option<Instant>>,
 }
 
 impl JobContext {
+    /// Publie la progression. L'état gardé (`job_state`) est toujours le dernier ; les
+    /// événements sont espacés d'au moins `EMIT_EVERY` (le résultat final arrive par `job-done`).
     pub fn progress<P: Serialize>(&self, data: &P) {
         let Ok(value) = serde_json::to_value(data) else {
             return;
@@ -60,6 +68,13 @@ impl JobContext {
             if let Some(entry) = map.get_mut(&self.id) {
                 entry.state.progress = Some(value.clone());
             }
+        }
+        {
+            let mut last = self.last_emit.lock().unwrap_or_else(|p| p.into_inner());
+            if last.is_some_and(|t| t.elapsed() < EMIT_EVERY) {
+                return;
+            }
+            *last = Some(Instant::now());
         }
         // Échec d'émission ignoré : fenêtre fermée pendant la tâche.
         let _ = self.app.emit(
@@ -110,11 +125,18 @@ impl Jobs {
             app: app.clone(),
             jobs: self.clone(),
             cancel,
+            last_emit: Mutex::new(None),
         };
         std::thread::spawn(move || {
-            let result = match work(&ctx) {
-                Ok(v) => serde_json::json!({ "ok": v }),
-                Err(e) => serde_json::json!({ "error": e }),
+            // Une panique dans la tâche doit quand même la terminer : sinon elle resterait « en
+            // cours » pour toujours (aucune relance possible, attente sans fin dans l'interface).
+            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| work(&ctx)));
+            let result = match outcome {
+                Ok(Ok(v)) => serde_json::json!({ "ok": v }),
+                Ok(Err(e)) => serde_json::json!({ "error": e }),
+                Err(_) => serde_json::json!({
+                    "error": { "kind": "internal", "detail": "erreur interne : la tâche s'est arrêtée" }
+                }),
             };
             if let Ok(mut map) = ctx.jobs.0.lock() {
                 if let Some(entry) = map.get_mut(&ctx.id) {
@@ -147,6 +169,10 @@ impl Jobs {
             .ok()
             .and_then(|map| map.get(id).map(|e| e.state.clone()))
             .unwrap_or_default()
+    }
+
+    pub fn is_running(&self, id: &str) -> bool {
+        self.state(id).running
     }
 
     pub fn any_running(&self) -> bool {

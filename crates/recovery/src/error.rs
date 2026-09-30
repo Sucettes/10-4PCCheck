@@ -26,26 +26,35 @@ pub enum RecoveryError {
     #[error("{tool} : {message}")]
     ToolFailed { tool: String, message: String },
 
-    #[error("impossible de lancer {path:?} : {reason}")]
+    #[error("impossible de lancer {} : {reason}", path.display())]
     Spawn { path: PathBuf, reason: String },
 
     #[error(
-        "la destination {path:?} est sur le même disque que la source ({disk}) : \
-         choisis un autre disque (clé USB, disque externe), sinon PhotoRec écraserait \
-         les fichiers que tu cherches à récupérer"
+        "la destination {} est sur le même disque que la source ({disk}) : \
+         choisis un autre disque (clé USB, disque externe), sinon la récupération écraserait \
+         les fichiers que tu cherches à récupérer",
+        path.display()
     )]
     SameDisk { path: PathBuf, disk: DiskId },
 
     #[error(
-        "impossible de savoir sur quel disque se trouve {path:?} ({reason}) : \
-         par sécurité, choisis une destination sur un autre disque identifiable"
+        "impossible de savoir sur quel disque se trouve {} ({reason}) : \
+         par sécurité, choisis une destination sur un autre disque identifiable",
+        path.display()
     )]
     DestinationDiskUnknown { path: PathBuf, reason: String },
 
-    #[error("destination invalide {path:?} : {reason}")]
+    #[error(
+        "impossible de savoir sur quel disque physique se trouve le volume {} ({reason}) : \
+         sans cela, on ne peut pas garantir que la destination est ailleurs",
+        path.display()
+    )]
+    SourceDiskUnknown { path: PathBuf, reason: String },
+
+    #[error("destination invalide {} : {reason}", path.display())]
     InvalidDestination { path: PathBuf, reason: String },
 
-    #[error("impossible de créer le dossier {path:?} : {reason}")]
+    #[error("impossible de créer le dossier {} : {reason}", path.display())]
     CreateDestination { path: PathBuf, reason: String },
 
     #[error("choisis au moins un type de fichiers à récupérer")]
@@ -54,7 +63,7 @@ pub enum RecoveryError {
     #[error("nom de disque non pris en charge pour PhotoRec : {name}")]
     UnsupportedDeviceName { name: String },
 
-    #[error("lecture de {path:?} impossible : {reason}")]
+    #[error("lecture de {} impossible : {reason}", path.display())]
     Io { path: PathBuf, reason: String },
 }
 
@@ -72,10 +81,17 @@ impl From<ProcessError> for RecoveryError {
         match e {
             ProcessError::NotFound { searched, .. } => RecoveryError::PhotorecNotFound { searched },
             ProcessError::Spawn { path, reason } => RecoveryError::Spawn { path, reason },
-            // `locate` ne produit jamais de délai dépassé ; conversion gardée pour être exhaustif.
-            ProcessError::Timeout { path, seconds, .. } => RecoveryError::Spawn {
-                path,
-                reason: format!("délai de {seconds} s dépassé"),
+            // Le programme a bien démarré mais n'a pas fini à temps (fls sur un très gros volume
+            // ou un disque qui relit ses secteurs défectueux).
+            ProcessError::Timeout { path, seconds, .. } => RecoveryError::ToolFailed {
+                tool: path
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+                message: format!(
+                    "pas de réponse après {} min (disque très lent ou abîmé ?)",
+                    seconds.div_ceil(60)
+                ),
             },
         }
     }
