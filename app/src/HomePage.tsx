@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { Page } from "./App";
-import { formatBytes, mediaLabel } from "./format";
+import { diskTag, formatBytes, mediaLabel } from "./format";
 import { Icon, type IconName } from "./icons";
 import type { Load } from "./load";
 import { machineName, type MachineInventory, type ReportSummary } from "./moreTypes";
@@ -58,7 +58,10 @@ export function HomePage({ disks, go }: { disks: Load<DiskEntry[]>; go: (p: Page
           <div className="mode-disks">
             {diskList.slice(0, 4).map((e) => (
               <div key={e.device.name}>
-                <span>{e.info?.model ?? e.device.info_name}</span>
+                <span>
+                  {e.info?.model ?? e.device.info_name}
+                  <span className="muted"> · {diskTag(e, diskList)}</span>
+                </span>
                 <span className="muted">{e.info ? mediaLabel(e.info) : "Illisible"}</span>
               </div>
             ))}

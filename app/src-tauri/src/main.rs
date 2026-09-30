@@ -84,11 +84,47 @@ async fn app_info(state: State<'_, AppState>) -> Result<AppInfo, CommandError> {
 async fn scan_disks(
     state: State<'_, AppState>,
     cache: State<'_, Cache>,
-) -> Result<Vec<DiskEntry>, CommandError> {
+) -> Result<Vec<DiskView>, CommandError> {
     let smartctl = state.smartctl.clone()?;
-    let disks = blocking(move || smartctl.scan_all()).await??;
+    let (disks, volumes) = blocking(move || {
+        smartctl
+            .scan_all()
+            .map(|d| (d, pccheck_recovery::list_volumes()))
+    })
+    .await??;
     cache.lock().disks = disks.clone();
-    Ok(disks)
+    Ok(disks
+        .into_iter()
+        .map(|entry| {
+            let disk = pccheck_recovery::disk_from_smartctl_name(&entry.device.name).ok();
+            let volumes = volumes
+                .iter()
+                .filter(|v| disk.is_some() && v.disk == disk)
+                .map(|v| VolumeTag {
+                    path: v.path.display().to_string(),
+                    label: v.label.clone(),
+                })
+                .collect();
+            DiskView { entry, volumes }
+        })
+        .collect())
+}
+
+/// Disque tel qu'affiché : ses données, plus les volumes (lettres) qu'il porte, pour distinguer
+/// deux disques du même modèle.
+#[derive(Serialize)]
+struct DiskView {
+    #[serde(flatten)]
+    entry: DiskEntry,
+    volumes: Vec<VolumeTag>,
+}
+
+#[derive(Serialize)]
+struct VolumeTag {
+    /// `C:\` sous Windows, point de montage sous Linux.
+    path: String,
+    /// Nom du volume, vide s'il n'en a pas.
+    label: String,
 }
 
 /// Lance un auto-test SMART. `device` vient de `scan_disks` : chemin et type passés en arguments

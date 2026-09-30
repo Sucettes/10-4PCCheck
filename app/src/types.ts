@@ -120,4 +120,6 @@ export interface DiskEntry {
   device: ScanDevice;
   info: DiskInfo | null;
   error: SmartctlError | null;
+  /** Volumes portés par le disque (lettres sous Windows), pour distinguer deux disques identiques. */
+  volumes?: { path: string; label: string }[];
 }

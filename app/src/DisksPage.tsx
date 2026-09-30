@@ -2,7 +2,7 @@ import { useRef, useState, type KeyboardEvent } from "react";
 import { DiskDetail } from "./DiskDetail";
 import { Hint } from "./Hint";
 import { unreadableHint } from "./hints";
-import { smartctlErrorMessage } from "./format";
+import { diskTag, smartctlErrorMessage } from "./format";
 import type { Load } from "./load";
 import { entryLevel } from "./status";
 import type { AppInfo, DiskEntry } from "./types";
@@ -91,6 +91,7 @@ function DisksView({ disks }: { disks: Load<DiskEntry[]> }) {
             >
               <span className={`dot dot-${entryLevel(entry)}`} aria-hidden="true" />
               <span className="disk-tab-name">{entry.info?.model ?? entry.device.info_name}</span>
+              <span className="muted small">{diskTag(entry, entries)}</span>
               {pct !== null && <span className="disk-tab-pct">{pct} %</span>}
             </button>
           );

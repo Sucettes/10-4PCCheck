@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { formatBytes, mediaLabel } from "./format";
+import { diskTag, formatBytes, mediaLabel } from "./format";
 import { cancelJob, isOk, useJob } from "./jobs";
 import { errorMessage, type Load } from "./load";
 import type { FileFamily, RecoveryProgress, RecoveryStatus } from "./moreTypes";
@@ -141,7 +141,12 @@ export function RecoveryPage({ disks }: { disks: Load<DiskEntry[]> }) {
                 <input type="radio" name="src" checked={source === d.device.name} onChange={() => setSource(d.device.name)} />
                 <span>
                   {d.model ?? d.device.info_name}
-                  <span className="muted small"> · {mediaLabel(d)} · {formatBytes(d.capacity_bytes)}</span>
+                  <span className="muted small">
+                    {" "}
+                    · {mediaLabel(d)} · {formatBytes(d.capacity_bytes)}
+                    {disks.state === "ok" &&
+                      ` · ${diskTag(disks.value.find((e) => e.device.name === d.device.name)!, disks.value)}`}
+                  </span>
                 </span>
               </label>
             ))}

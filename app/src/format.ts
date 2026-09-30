@@ -1,4 +1,4 @@
-import type { CommandError, DiskInfo, SmartctlError } from "./types";
+import type { CommandError, DiskEntry, DiskInfo, SmartctlError } from "./types";
 
 const nf = new Intl.NumberFormat("fr-CA");
 
@@ -26,6 +26,23 @@ export function formatHex(n: number): string {
 /** Numéro de série masqué sauf les 4 premiers caractères (captures d'écran partagées). */
 export function maskSerial(serial: string): string {
   return serial.length <= 4 ? serial : serial.slice(0, 4) + "•".repeat(serial.length - 4);
+}
+
+/**
+ * Étiquette qui distingue un disque des autres : ses lettres de lecteur et leur nom (« C: · D: Data »),
+ * plus la fin du numéro de série si un autre disque a le même modèle.
+ */
+export function diskTag(entry: DiskEntry, all: DiskEntry[]): string {
+  const volumes = (entry.volumes ?? []).map((v) => {
+    const name = v.path.replace(/[\\/]+$/, "") || v.path;
+    return v.label ? `${name} ${v.label}` : name;
+  });
+  const parts = volumes.length > 0 ? [volumes.join(" · ")] : ["sans lettre"];
+  const model = entry.info?.model;
+  const twins = model ? all.filter((e) => e.info?.model === model).length > 1 : false;
+  const serial = entry.info?.serial;
+  if (twins && serial) parts.push(`n° …${serial.slice(-4)}`);
+  return parts.join(" · ");
 }
 
 export function mediaLabel(disk: DiskInfo): string {
