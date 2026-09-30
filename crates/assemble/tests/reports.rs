@@ -7,6 +7,7 @@ use pccheck_assemble::{
     build_disk_report, build_machine_report, build_phone_report, InteractiveEntry, PhoneAnalysis,
     Results,
 };
+use pccheck_core::speed::{AccessTime, ReadSpeed, SpeedResult, WriteSpeed, ZoneSpeed};
 use pccheck_core::{parse_disk, DiskEntry, ScanDevice};
 use pccheck_inventory::{
     analyse_gpu_test, GpuSample, GpuTestInput, MachineInventory, RamTestResult, StressResult,
@@ -225,4 +226,44 @@ fn machine_report_needs_inventory() {
     };
     assert!(build_machine_report(&r, &[], vec![], vec![]).is_err());
     let _ = MachineInventory::default();
+}
+
+#[test]
+fn speed_and_age_are_rated_on_the_disk_scale() {
+    let mut r = results_with_disks();
+    let ssd = r.disks[0].info.clone().unwrap();
+    let scale = pccheck_core::speed::speed_scale(&ssd);
+    r.speed.insert(
+        "/dev/sda".into(),
+        SpeedResult {
+            read: Some(ReadSpeed {
+                zones: [(0, 520.0), (50, 515.0), (100, 510.0)]
+                    .map(|(position_pct, mbps)| ZoneSpeed { position_pct, mbps })
+                    .to_vec(),
+                access: Some(AccessTime {
+                    avg_ms: 0.1,
+                    max_ms: 0.4,
+                    samples: 100,
+                }),
+            }),
+            read_error: None,
+            write: Some(WriteSpeed {
+                volume: "E:\\".into(),
+                mbps: 180.0,
+                bytes: 1 << 30,
+            }),
+            write_skipped: None,
+            cancelled: false,
+            scale,
+        },
+    );
+    r.label_years.insert("/dev/sda".into(), 2019);
+    let rep = build_disk_report(&r, "/dev/sda", vec![]).unwrap();
+    let items = &rep.sections[0].items;
+    let item = |label: &str| items.iter().find(|i| i.label == label).unwrap();
+    assert_eq!(item("Lecture").level, Level::Ok);
+    assert!(item("Lecture").value.contains("bon"));
+    // 180 Mo/s en écriture pour un SSD SATA : faible.
+    assert_eq!(item("Écriture").level, Level::Warn);
+    assert!(item("Âge estimé").value.contains("étiquette : 2019"));
 }

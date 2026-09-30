@@ -7,8 +7,10 @@
 use std::collections::HashMap;
 
 use pccheck_android::{ChecklistItem, Finding, FindingLevel, PhoneReport};
+use pccheck_core::age::{current_year, estimate_age, HoursRating, HDD_HOURS_END, HDD_HOURS_WORN};
 use pccheck_core::capacity::CapacityResult;
 use pccheck_core::checks::{fmt_bytes, fmt_int};
+use pccheck_core::speed::{Rating, SpeedResult};
 use pccheck_core::surface::SurfaceResult;
 use pccheck_core::{
     AttributeStatus, CheckLevel, DiskEntry, DiskInfo, MediaKind, Protocol, SelfTestStatus,
@@ -49,6 +51,10 @@ pub struct Results {
     /// Par chemin smartctl du disque.
     pub surface: HashMap<String, SurfaceResult>,
     pub self_tests: HashMap<String, SelfTestStatus>,
+    /// Test de vitesse rapide, par chemin smartctl.
+    pub speed: HashMap<String, SpeedResult>,
+    /// Année de fabrication lue sur l'étiquette par l'utilisateur, par chemin smartctl.
+    pub label_years: HashMap<String, u16>,
     pub capacity: Option<CapacityResult>,
     pub phone: Option<PhoneAnalysis>,
     /// Dernière récupération terminée (PhotoRec ou The Sleuth Kit).
@@ -178,16 +184,7 @@ fn disk_section(d: &DiskInfo, r: &Results, th: &Thresholds) -> Section {
             ),
         );
     }
-    if let Some(h) = d.power_on_hours {
-        items.push(
-            Item::new(
-                "Heures d'utilisation",
-                format!("{} h", fmt_int(h)),
-                Level::Info,
-            )
-            .with_detail(format!("Environ {} jours allumé.", fmt_int(h / 24))),
-        );
-    }
+    items.extend(age_items(d, r));
     if let Some(c) = d.power_cycles {
         items.push(Item::new("Démarrages", fmt_int(c), Level::Info));
     }
@@ -220,6 +217,9 @@ fn disk_section(d: &DiskInfo, r: &Results, th: &Thresholds) -> Section {
             item = item.with_detail(last.text.clone());
         }
         items.push(item);
+    }
+    if let Some(sp) = r.speed.get(&d.device.name) {
+        items.extend(speed_items(sp));
     }
     if let Some(sv) = r.surface.get(&d.device.name) {
         let mut item = if sv.bad_bytes > 0 {
@@ -276,6 +276,200 @@ fn disk_section(d: &DiskInfo, r: &Results, th: &Thresholds) -> Section {
     s
 }
 
+/// Heures d'utilisation (avec repères pour un disque dur) et âge estimé, avec l'intensité d'usage.
+fn age_items(d: &DiskInfo, r: &Results) -> Vec<Item> {
+    let label_year = r.label_years.get(&d.device.name).copied();
+    let age = estimate_age(d, label_year, current_year());
+    let mut items = Vec::new();
+    if let Some(h) = age.power_on_hours {
+        let days = format!("Environ {} jours allumé.", fmt_int(h / 24));
+        let item = match age.hours_rating {
+            Some(rating) => {
+                let (word, level) = match rating {
+                    HoursRating::Young => ("peu utilisé", Level::Ok),
+                    HoursRating::Worn => ("usé", Level::Warn),
+                    HoursRating::EndOfLife => ("fin de vie probable", Level::Bad),
+                };
+                Item::new(
+                    "Heures d'utilisation",
+                    format!("{} h · {word}", fmt_int(h)),
+                    level,
+                )
+                .with_detail(format!(
+                    "{days} Repères pour un disque dur : moins de {} h peu utilisé, {} à {} h usé, \
+                     plus de {} h fin de vie probable (statistiques Backblaze).",
+                    fmt_int(HDD_HOURS_WORN),
+                    fmt_int(HDD_HOURS_WORN),
+                    fmt_int(HDD_HOURS_END),
+                    fmt_int(HDD_HOURS_END)
+                ))
+            }
+            None => Item::new("Heures d'utilisation", format!("{} h", fmt_int(h)), Level::Info)
+                .with_detail(format!(
+                    "{days} Sur un SSD, l'usure se lit dans la vie restante plutôt que dans les heures."
+                )),
+        };
+        items.push(item);
+    }
+    let years = |a: f64| format!("{} ans", a.round() as u64);
+    let (value, mut detail) = match (age.age_years, label_year, age.model_year) {
+        (Some(a), Some(y), _) => (format!("≈ {} (étiquette : {y})", years(a)), String::new()),
+        (Some(a), None, Some(y)) => (
+            format!("au plus ≈ {} (modèle sorti vers {y})", years(a)),
+            "Le disque a pu être fabriqué après la sortie du modèle. Saisis l'année imprimée sur \
+             l'étiquette pour un âge exact."
+                .to_string(),
+        ),
+        _ => (
+            "Inconnu".to_string(),
+            "Saisis l'année imprimée sur l'étiquette du disque pour connaître son âge et son \
+             intensité d'usage."
+                .to_string(),
+        ),
+    };
+    if let Some(per_day) = age.hours_per_day {
+        let prefix = if age.age_is_maximum { "au moins " } else { "" };
+        let per_day = format!("{per_day:.1}").replace('.', ",");
+        detail = format!("Utilisé {prefix}{per_day} h par jour en moyenne. {detail}");
+    }
+    let level = if age.age_years.is_some() {
+        Level::Info
+    } else {
+        Level::Neutral
+    };
+    items.push(Item::new("Âge estimé", value, level).with_detail(detail.trim().to_string()));
+    items
+}
+
+fn rating_level(r: Rating) -> (&'static str, Level) {
+    match r {
+        Rating::Good => ("bon", Level::Ok),
+        Rating::Acceptable => ("acceptable", Level::Ok),
+        Rating::Weak => ("faible", Level::Warn),
+        Rating::LimitedByLink => ("bridé par le port", Level::Info),
+    }
+}
+
+fn mbps_text(v: f64) -> String {
+    format!("{} Mo/s", fmt_int(v.round() as u64))
+}
+
+/// Lecture, temps d'accès et écriture du test rapide, placés sur l'échelle du type de disque.
+fn speed_items(sp: &SpeedResult) -> Vec<Item> {
+    let mut items = Vec::new();
+    let scale = sp.scale.as_ref();
+    let band_text = |good: f64, ok: f64, unit: &str, higher: bool| {
+        let (g, a) = if higher {
+            ("≥", "≥")
+        } else {
+            ("≤", "≤")
+        };
+        format!(
+            "bon {g} {} {unit}, acceptable {a} {} {unit}",
+            fmt_int(good as u64),
+            fmt_int(ok as u64)
+        )
+    };
+    match (&sp.read, &sp.read_error) {
+        (Some(read), _) => {
+            if let Some(first) = read.zones.first() {
+                let zones = read
+                    .zones
+                    .iter()
+                    .map(|z| {
+                        let at = match z.position_pct {
+                            0 => "début",
+                            50 => "milieu",
+                            _ => "fin",
+                        };
+                        format!("{at} {}", mbps_text(z.mbps))
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let (value, level, mut detail) = match scale {
+                    Some(sc) => {
+                        let (word, level) = rating_level(sc.rate_throughput(&sc.read, first.mbps));
+                        (
+                            format!("{} · {word}", mbps_text(first.mbps)),
+                            level,
+                            format!(
+                                "{zones}. Repères {} (début du disque) : {}.",
+                                sc.class,
+                                band_text(sc.read.good, sc.read.acceptable, "Mo/s", true)
+                            ),
+                        )
+                    }
+                    None => (mbps_text(first.mbps), Level::Info, format!("{zones}.")),
+                };
+                if let Some(cap) = scale.and_then(|s| s.link_cap_mbps) {
+                    detail.push_str(&format!(
+                        " Port SATA ancien : environ {} au maximum, quel que soit le disque.",
+                        mbps_text(cap)
+                    ));
+                }
+                items.push(Item::new("Lecture", value, level).with_detail(detail));
+            }
+            if let Some(acc) = &read.access {
+                let ms = format!("{:.1} ms", acc.avg_ms).replace('.', ",");
+                let item = match scale.and_then(|s| s.access) {
+                    Some(band) => {
+                        let (word, level) = rating_level(band.rate(acc.avg_ms));
+                        Item::new("Temps d'accès", format!("{ms} · {word}"), level).with_detail(
+                            format!(
+                                "Moyenne de {} lectures au hasard (maximum {:.0} ms). C'est la \
+                                 lenteur ressentie à l'ouverture de nombreux petits fichiers. \
+                                 Repères : {}.",
+                                acc.samples,
+                                acc.max_ms,
+                                band_text(band.good, band.acceptable, "ms", false)
+                            ),
+                        )
+                    }
+                    None => Item::new("Temps d'accès", ms, Level::Info),
+                };
+                items.push(item);
+            }
+        }
+        (None, Some(e)) => items.push(
+            Item::new("Test de vitesse", "Impossible", Level::Neutral).with_detail(e.clone()),
+        ),
+        (None, None) => {}
+    }
+    match (&sp.write, &sp.write_skipped) {
+        (Some(w), _) => {
+            let detail = format!(
+                "Fichier neuf de {} écrit dans l'espace libre de {}, puis supprimé.",
+                fmt_bytes(w.bytes),
+                w.volume
+            );
+            let item = match scale {
+                Some(sc) => {
+                    let (word, level) = rating_level(sc.rate_throughput(&sc.write, w.mbps));
+                    Item::new("Écriture", format!("{} · {word}", mbps_text(w.mbps)), level)
+                        .with_detail(format!(
+                            "{detail} Repères {} : {}.",
+                            sc.class,
+                            band_text(sc.write.good, sc.write.acceptable, "Mo/s", true)
+                        ))
+                }
+                None => Item::new("Écriture", mbps_text(w.mbps), Level::Info).with_detail(detail),
+            };
+            items.push(item);
+        }
+        (None, Some(why)) => items
+            .push(Item::new("Écriture", "Non mesurée", Level::Neutral).with_detail(why.clone())),
+        (None, None) => {}
+    }
+    if sp.cancelled {
+        items.push(Item::new(
+            "Test de vitesse",
+            "Arrêté avant la fin",
+            Level::Neutral,
+        ));
+    }
+    items
+}
+
 fn disk_details(d: &DiskInfo) -> Vec<Detail> {
     let mut v = vec![
         Detail::new("Type", media_label(d)),
@@ -327,6 +521,8 @@ pub fn build_disk_report(
         "disk": d,
         "self_test": r.self_tests.get(device),
         "surface": r.surface.get(device),
+        "speed": r.speed.get(device),
+        "label_year": r.label_years.get(device),
     });
     Ok(rep)
 }
@@ -917,6 +1113,8 @@ pub fn build_machine_report(
         "ram_test": r.ram,
         "surface": r.surface,
         "self_tests": r.self_tests,
+        "disk_speed": r.speed,
+        "label_years": r.label_years,
     });
     Ok(rep)
 }

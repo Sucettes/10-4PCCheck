@@ -9,6 +9,7 @@ mod phone;
 mod recover;
 mod reports;
 mod self_test;
+mod speed;
 mod terminal;
 
 use std::path::{Path, PathBuf};
@@ -419,6 +420,10 @@ fn main() {
             cancel_job,
             start_surface_scan,
             start_capacity_test,
+            speed::start_speed_test,
+            speed::set_disk_year,
+            speed::disk_age,
+            speed::speed_result,
             phone::phone_devices,
             phone::phone_collect,
             machine::machine_inventory,
