@@ -8,6 +8,21 @@ PCCheck est un outil de diagnostic portable, sur clé USB, pour vérifier un app
 
 Le dépôt, ses issues et son wiki sont publics. N'y mets jamais : nom, courriel, nom d'utilisateur Windows, nom de machine, chemins personnels (`C:\Users\...`), numéros de série réels, sorties réelles de smartctl, adb ou WMI d'une vraie machine, clés, jetons. Les tests utilisent des sorties **reconstruites** avec des séries et des comptes inventés (`R58N00000XX`, `compte1@example.com`). Vérifie un diff avant chaque commit.
 
+## Documentation toujours à jour
+
+La documentation fait partie de la fonctionnalité : **une pull request qui change un comportement met à jour sa documentation dans la même pull request**, sinon elle n'est pas terminée.
+
+| Ce qui change | À mettre à jour |
+|---|---|
+| Écran, mesure, seuil, message visible | La page du wiki concernée (`docs/wiki/`), l'info-bulle (`app/src/hints.ts`) |
+| Seuil du verdict ou échelle | `docs/wiki/Rapports-et-verdict.md` ou `Disques.md`, et les tests qui le fixent |
+| Installation, clé USB, outils tiers | `docs/wiki/Installation.md`, `docs/LISEZMOI-CLE.txt`, `README.md` |
+| Commandes, organisation, convention, piège | Ce fichier (`CLAUDE.md`) et `docs/wiki/Développement.md` |
+| Décision, limite connue, question tranchée | `docs/PLAN.md` |
+| Capture d'écran devenue fausse | Les captures du wiki (voir `docs/wiki/`) |
+
+Le wiki GitHub est publié automatiquement depuis `docs/wiki/` à chaque mise à jour de `master` (job `wiki` de la CI) : ne le modifie jamais directement sur GitHub, ta modification serait écrasée. Liens entre pages : `[[Nom de la page]]`.
+
 ## Organisation
 
 | Dossier | Rôle |
