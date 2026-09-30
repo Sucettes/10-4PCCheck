@@ -6,7 +6,7 @@ import { HomePage } from "./HomePage";
 import { RecoveryPage } from "./RecoveryPage";
 import { ReportsPage } from "./ReportsPage";
 import { PhonePage } from "./Phone";
-import { Icon, type IconName } from "./icons";
+import { BrandMark, Icon, type IconName } from "./icons";
 import { errorMessage, type Load } from "./load";
 import type { AppInfo, DiskEntry } from "./types";
 
@@ -91,8 +91,8 @@ function Sidebar({ info, page, go }: { info: Load<AppInfo>; page: Page; go: (p: 
   return (
     <nav className="sidebar" aria-label="Navigation principale">
       <div className="brand">
-        <div className="brand-mark">10-4</div>
-        <div className="brand-name">PCCheck</div>
+        <BrandMark />
+        <div className="brand-name">10-4 PCCheck</div>
       </div>
       {NAV.map((n) => (
         <a

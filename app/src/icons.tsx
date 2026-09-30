@@ -36,3 +36,20 @@ export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
     </svg>
   );
 }
+
+// Logo (jauge du verdict). Même dessin que src-tauri/icons/icon.svg, source des icônes de l'exécutable.
+export function BrandMark({ size = 30 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 128 128" aria-hidden="true">
+      <rect width="128" height="128" rx="28" fill="#2459d6" />
+      <g fill="none" strokeWidth="18">
+        <path d="M24 84A40 40 0 0 1 44 49.36" stroke="#ff7a7a" />
+        <path d="M44 49.36A40 40 0 0 1 84 49.36" stroke="#ffc933" />
+        <path d="M84 49.36A40 40 0 0 1 104 84" stroke="#5fe39a" />
+      </g>
+      <path d="M50 59.8L38 39M78 59.8L90 39" stroke="#2459d6" strokeWidth="4" />
+      <path d="M64 84L91.7 68" stroke="#fff" strokeWidth="7" strokeLinecap="round" />
+      <circle cx="64" cy="84" r="9" fill="#fff" />
+    </svg>
+  );
+}

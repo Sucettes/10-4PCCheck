@@ -51,12 +51,7 @@ body {
   gap: 4px;
 }
 .brand { display: flex; align-items: center; gap: 8px; padding: 0 6px 14px; }
-.brand-mark {
-  width: 30px; height: 30px; border-radius: 8px;
-  background: var(--accent); color: #fff;
-  display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-display); font-weight: 700; font-size: 11px; letter-spacing: -0.02em;
-}
+.brand svg { flex-shrink: 0; }
 .brand-name { font-family: var(--font-display); font-weight: 600; font-size: 16px; }
 .nav-item {
   display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border-radius: 7px;
@@ -293,11 +288,16 @@ h2 { margin: 0; font-family: var(--font-display); font-size: 15px; font-weight: 
 .verdict-warn, .verdict-info { background: #fff8e6; border-color: var(--warn-border); }
 .verdict-bad { background: var(--bad-bg); border-color: var(--bad-border); }
 .verdict-neutral { background: var(--surface-soft); border-color: var(--border); }
-.verdict-icon { width: 34px; height: 34px; flex-shrink: 0; border-radius: 17px; display: flex; align-items: center; justify-content: center; }
-.verdict-ok .verdict-icon { background: var(--good-dot); color: #fff; }
-.verdict-warn .verdict-icon, .verdict-info .verdict-icon { background: #f5b73b; color: #1a1406; }
-.verdict-bad .verdict-icon { background: #d92d20; color: #fff; }
-.verdict-neutral .verdict-icon { background: var(--border-strong); color: var(--text); }
+.verdict-icon { flex-shrink: 0; display: flex; }
+/* Jauge du verdict (GaugeIcon) : mêmes couleurs que les anciennes pastilles. */
+.gauge-arc { fill: none; stroke-width: 18; }
+.gauge-arc.gauge-ok { stroke: var(--good-dot); }
+.gauge-arc.gauge-warn { stroke: #f5b73b; }
+.gauge-arc.gauge-bad { stroke: #d92d20; }
+.gauge-dim { opacity: 0.3; }
+.gauge-neutral .gauge-arc { stroke: var(--border-strong); opacity: 1; }
+.gauge-needle { stroke: var(--text); stroke-width: 7; stroke-linecap: round; }
+.gauge-hub { fill: var(--text); }
 .verdict-text { display: flex; flex-direction: column; gap: 1px; flex-grow: 1; min-width: 0; }
 .verdict-title { font-family: var(--font-display); font-size: 17px; font-weight: 600; }
 .verdict-ok .verdict-title { color: var(--good-text); }
