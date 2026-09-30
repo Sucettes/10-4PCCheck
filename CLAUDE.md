@@ -116,6 +116,12 @@ dev ◄─ feat/vitesse-1-moteur ◄─ feat/vitesse-2-rapport ◄─ feat/vites
 - PR `dev` → `master` : les étiquettes de toutes les PR qu'elle livre ;
 - jamais `à trier` (issues pas encore examinées) ni `agentflySucettes*` : ces étiquettes sont réservées à AgentFly, et `agentflySucettes` sur une issue **lance** son traitement.
 
+**Jalons (milestones)** : un jalon = une version (`0.2 · Verdict des disques fiable`), livrée par une PR `dev` → `master`. Tu les crées et les tiens à jour :
+- toute issue et toute PR vers `dev` est rattachée au jalon de la version qui la livrera (`gh pr create ... --milestone "0.2 · Verdict des disques fiable"`, `gh issue edit 12 --milestone ...`) ; une PR de Dependabot va dans le jalon en cours ;
+- un travail prévu mais pas encore planifié : une issue sans jalon ; un sujet qui mérite sa propre version : un nouveau jalon, avec une description qui dit ce qu'il livre (`gh api -X POST repos/Sucettes/10-4PCCheck/milestones -f title=... -f description=...`) ;
+- la PR `dev` → `master` qui termine un jalon augmente la version (`Cargo.toml` du workspace, `app/src-tauri/tauri.conf.json`, `app/package.json`) ; une fois fusionnée et la release publiée, ferme le jalon (`gh api -X PATCH repos/Sucettes/10-4PCCheck/milestones/<n> -f state=closed`) ;
+- un point de `docs/PLAN.md` (limite connue, question ouverte) qui devient du travail prévu devient une issue dans un jalon.
+
 Messages de commit et titres de PR en français, descriptifs, sans préfixe conventionnel ni émoji : le quoi sur la première ligne, le pourquoi dans le corps.
 
 ## AgentFly
