@@ -48,8 +48,8 @@ export function HomePage({ disks, go }: { disks: Load<DiskEntry[]>; go: (p: Page
         <ModeCard
           icon="pulse"
           title="Analyse complète"
-          time="~7 min + tests interactifs"
-          text="Matériel, disques, batterie, charge du processeur, mémoire, licence et sécurité, puis tests interactifs clavier, écran, audio et ports."
+          time="~9 min + tests interactifs"
+          text="Matériel, disques, batterie, charge du processeur et de la carte graphique, mémoire, licence et sécurité, puis tests interactifs clavier, écran, audio et ports."
           action="Lancer l'analyse"
           onClick={() => go("analyse")}
           primary
