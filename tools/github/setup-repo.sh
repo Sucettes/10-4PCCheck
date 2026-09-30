@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Configuration du dépôt GitHub, relançable sans risque (chaque étape remplace l'état précédent) :
-#   - description, sujets, issues, wiki, fusion des PR ;
+#   - description, sujets, issues, wiki, fusion des PR (squash pour les PR de fonctionnalité,
+#     commit de fusion possible pour garder l'historique d'une grosse branche) ;
 #   - fonctions de sécurité (alertes et correctifs Dependabot, détection de secrets, signalement
 #     privé de failles) ;
 #   - étiquettes des issues ;
@@ -19,7 +20,7 @@ gh repo edit "$repo" \
   --description "Diagnostic portable d'occasion sur clé USB : ordinateurs, disques et téléphones Android. Santé SMART, âge, vitesse, tests de charge, récupération de fichiers et rapport PDF avec verdict. Windows et Linux." \
   --homepage "https://github.com/$repo/wiki" \
   --enable-issues --enable-wiki --enable-projects=false \
-  --enable-squash-merge --enable-merge-commit=false --enable-rebase-merge=false \
+  --enable-squash-merge --enable-merge-commit --enable-rebase-merge=false \
   --delete-branch-on-merge --enable-auto-merge
 for topic in diagnostic hardware smart smartctl disk-health ssd hdd usb data-recovery \
   photorec testdisk sleuthkit android adb tauri rust react windows linux; do
@@ -83,7 +84,7 @@ fi
 
 step "Wiki"
 wiki=$(mktemp -d)
-if git clone -q "https://github.com/$repo.wiki.git" "$wiki" 2>/dev/null; then
+if gh repo clone "$repo.wiki" "$wiki" -- -q 2>/dev/null; then
   cp docs/wiki/*.md "$wiki/"
   git -C "$wiki" add -A
   if git -C "$wiki" diff --cached --quiet; then
