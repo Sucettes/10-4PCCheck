@@ -463,3 +463,15 @@ kbd { padding: 0 4px; border: 1px solid var(--border-strong); border-radius: 4px
 .scroll-table tbody tr { cursor: pointer; }
 .scroll-table tbody tr:hover td { background: var(--bg); }
 .row-selected td { background: #eef3fd; }
+
+/* Courbe du test de charge (StressChart.tsx) */
+.stress-chart { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.stress-chart svg { width: 100%; height: auto; max-height: 180px; }
+.chart-grid { stroke: #eef0f3; stroke-width: 1; }
+.chart-axis { font-size: 10px; fill: var(--text-2); font-family: var(--font-body); }
+.chart-rate { fill: none; stroke: var(--accent); stroke-width: 2; }
+.chart-temp { fill: none; stroke: #d97706; stroke-width: 2; stroke-dasharray: 5 3; }
+.chart-legend { color: var(--text-2); }
+.legend-rate, .legend-temp { font-weight: 600; }
+.legend-rate { color: var(--accent); }
+.legend-temp { color: #b45309; }

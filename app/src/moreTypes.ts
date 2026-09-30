@@ -70,6 +70,7 @@ export interface StressResult {
   cancelled: boolean;
   computation_errors: number;
   max_celsius: number | null;
+  samples: StressSample[];
   throttling: { baseline: number; final_rate: number; drop_pct: number; level: "none" | "brief" | "sustained" };
 }
 

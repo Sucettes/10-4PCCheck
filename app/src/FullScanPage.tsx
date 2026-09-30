@@ -2,10 +2,20 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { formatBytes } from "./format";
 import { interactiveResults, InteractiveTests, useResults } from "./InteractiveTests";
-import { cancelJob, useJob, waitForJob } from "./jobs";
+import { cancelJob, isOk, useJob, waitForJob } from "./jobs";
 import { errorMessage } from "./load";
 import { machineName } from "./moreTypes";
-import type { ChecklistEntry, Level, MachineInventory, RamProgress, Report, ReportItem, StressSample } from "./moreTypes";
+import type {
+  ChecklistEntry,
+  Level,
+  MachineInventory,
+  RamProgress,
+  Report,
+  ReportItem,
+  StressResult,
+  StressSample,
+} from "./moreTypes";
+import { StressChart } from "./StressChart";
 import { ReportButton } from "./ReportButton";
 import { VerdictBanner } from "./Verdict";
 
@@ -45,6 +55,8 @@ const RANK: Record<Level, number> = { neutral: 0, info: 1, ok: 2, warn: 3, bad: 
 /** État gardé entre deux passages sur l'écran. */
 let savedChecks: Record<string, boolean> = {};
 let savedStep: Step = "idle";
+/** Échantillons du test de charge en cours, gardés si l'écran est quitté puis rouvert. */
+let liveSamples: StressSample[] = [];
 
 function checklistEntries(checks: Record<string, boolean>): ChecklistEntry[] {
   return CHECKLIST.map((label) => ({ label, checked: !!checks[label], note: null }));
@@ -62,7 +74,27 @@ export function FullScanPage({ onRefreshDisks }: { onRefreshDisks: () => Promise
   const [error, setError] = useState<string | null>(null);
   const [checks, setChecks] = useState<Record<string, boolean>>(savedChecks);
   const interactive = useResults();
-  const [cpu] = useJob<StressSample, unknown>("cpu");
+  const [cpu] = useJob<StressSample, StressResult>("cpu");
+  const [samples, setSamples] = useState<StressSample[]>(liveSamples);
+
+  // Un échantillon par seconde pendant le test ; à la fin, la série complète du résultat fait foi.
+  useEffect(() => {
+    const s = cpu.progress;
+    if (!s || !cpu.running) return;
+    const last = liveSamples[liveSamples.length - 1];
+    if (last && s.elapsed_ms <= last.elapsed_ms) {
+      if (s.elapsed_ms < last.elapsed_ms) liveSamples = [];
+      else return;
+    }
+    liveSamples = [...liveSamples, s];
+    setSamples(liveSamples);
+  }, [cpu.progress, cpu.running]);
+  useEffect(() => {
+    if (!cpu.running && isOk(cpu.result) && cpu.result.ok.samples.length > 0) {
+      liveSamples = cpu.result.ok.samples;
+      setSamples(liveSamples);
+    }
+  }, [cpu.running, cpu.result]);
   const [ram] = useJob<RamProgress, unknown>("ram");
 
   const refreshPreview = useCallback(() => {
@@ -101,6 +133,8 @@ export function FullScanPage({ onRefreshDisks }: { onRefreshDisks: () => Promise
       await invoke("start_ram_test");
       await waitForJob("ram");
       go("cpu");
+      liveSamples = [];
+      setSamples([]);
       await invoke("start_cpu_stress", { seconds: CPU_SECONDS });
       await waitForJob("cpu");
       go("done");
@@ -156,6 +190,12 @@ export function FullScanPage({ onRefreshDisks }: { onRefreshDisks: () => Promise
       {!inventory && !error && <p className="muted">Lecture du matériel… (environ 10 secondes)</p>}
 
       {running && <StepProgress step={step} cpu={cpu.progress} ram={ram.progress} />}
+      {samples.length > 1 && (
+        <section className="panel" aria-label="Processeur sous charge">
+          <h3>Processeur sous charge</h3>
+          <StressChart samples={samples} seconds={CPU_SECONDS} />
+        </section>
+      )}
 
       {preview && (
         <VerdictBanner
