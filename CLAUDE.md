@@ -114,3 +114,4 @@ Les issues étiquetées `agentflySucettes` sont traitées par AgentFly (voir `ag
 - Lecture directe d'un SSD ou d'un disque SMR neuf : une zone jamais écrite répond sans être lue ; la vitesse de lecture fiable est la relecture du fichier écrit.
 - ConPTY (TestDisk sous Windows) : la sortie ne se ferme qu'à la libération de la session ; la fin est détectée par `try_wait`.
 - Fins de ligne : les scripts `.sh` restent en LF (`.gitattributes`), sinon bash échoue sur la CI Windows.
+- CI : sur `master`, chaque commit a son propre groupe de concurrence (jamais annulé). Un groupe par branche avec `cancel-in-progress` annulait la release d'une fusion dès la fusion suivante.
