@@ -1,5 +1,7 @@
 # Rapports et verdict
 
+![Liste des rapports enregistrés sur la clé, avec leur verdict](images/rapports.png)
+
 ## Verdict
 
 Chaque mesure reçoit un niveau : **Bon**, **À surveiller**, **Critique**, ou **Info** (descriptif, ne compte pas). Le verdict global :

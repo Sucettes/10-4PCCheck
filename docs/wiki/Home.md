@@ -4,6 +4,10 @@ Outil de diagnostic portable, sur clé USB, pour vérifier un appareil **d'occas
 
 Chaque analyse se termine par un **verdict** (Bon achat, À négocier, À éviter) et un **rapport** HTML et PDF enregistré sur la clé, avec la raison de chaque point.
 
+![Écran d'accueil de PCCheck](images/accueil.png)
+
+*Captures prises en mode démonstration : données fictives, aucune vraie machine.*
+
 ## Pages
 
 | Page | Contenu |

@@ -2,6 +2,8 @@
 
 Analyse par **adb** (Android Debug Bridge), sans rien installer sur le téléphone.
 
+![Analyse d'un téléphone Android : batterie, stockage, sécurité et verdict](images/telephone.png)
+
 ## Brancher le téléphone
 
 1. Sur le téléphone : *Paramètres > À propos du téléphone*, appuie 7 fois sur **Numéro de build**.

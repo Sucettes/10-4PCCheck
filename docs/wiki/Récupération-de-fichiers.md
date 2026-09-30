@@ -2,6 +2,8 @@
 
 Écran **Récupération**, trois méthodes. Règle absolue : la **destination** est toujours sur un **autre disque** que la source, sinon les fichiers récupérés écraseraient ceux qu'on cherche. PCCheck le vérifie et refuse sinon (y compris un disque virtuel VHD ou un partage réseau de la même machine).
 
+![Écran Récupération : disque source, destination sur un autre disque et méthode](images/recuperation.png)
+
 ## PhotoRec (par signatures)
 
 Retrouve les fichiers d'après leur contenu (photos, documents, vidéos, archives), même après un formatage. Les **noms et dossiers sont perdus** : les fichiers sont rangés par type dans `recup_dir.1`, `recup_dir.2`...

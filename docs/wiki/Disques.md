@@ -2,6 +2,8 @@
 
 Écran **Disques** : un onglet par disque. Deux disques du même modèle se distinguent par leur lettre de lecteur et la fin de leur numéro de série.
 
+![Onglet d'un SSD NVMe en bon état : santé, âge, vitesse et fiche technique](images/disque-ssd.png)
+
 ## Santé SMART
 
 Lue par **smartctl** (smartmontools). Chaque attribut SMART a :
@@ -14,6 +16,8 @@ Lue par **smartctl** (smartmontools). Chaque attribut SMART a :
 Les compteurs les plus parlants : secteurs réalloués (5), secteurs en attente (197) et non corrigibles (198), erreurs de câble (199). Sur un SSD, la **vie restante** (usure des cellules) ; sur un NVMe, les erreurs de média et l'avertissement critique.
 
 La section **Cohérence des compteurs** vérifie que les valeurs se tiennent (par exemple les écritures par rapport aux heures d'utilisation).
+
+![Disque dur en fin de vie : secteurs réalloués, heures élevées, âge et vitesse dégradée](images/disque-dur-defaillant.png)
 
 ## Âge et usure
 

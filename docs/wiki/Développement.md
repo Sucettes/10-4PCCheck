@@ -36,6 +36,8 @@ L'application a un mode d'autotest : `PCCheck.exe --self-test sortie.json` affic
 
 **Mode démo** : `npm run dev` dans `app/`, puis http://localhost:5173 dans un navigateur. Sans le moteur Tauri, l'interface affiche un PC, des disques et un téléphone fictifs (données générées par le moteur : `crates/assemble/examples/demo_data.rs`). Pratique pour travailler sur l'interface sans droits administrateur ni matériel.
 
+**Captures du wiki** : `tools/dev/wiki-screenshots.sh` construit l'interface et la photographie en mode démo avec Playwright, dans un conteneur Docker (rien à installer), vers `docs/wiki/images/`. À relancer quand un écran change ; les captures ne montrent donc jamais une vraie machine. La vidéo de démonstration d'AgentFly utilise le même mode (section `app` de `agentfly.yml`).
+
 ## Branches, CI et releases
 
 - Une branche par fonctionnalité, fusionnée dans `master` par pull request ; une fonctionnalité importante est découpée en **pull requests empilées** (moteur, puis application et rapport, puis interface), fusionnées du bas vers le haut. Détails dans `CLAUDE.md`.

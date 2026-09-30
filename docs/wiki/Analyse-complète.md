@@ -2,6 +2,8 @@
 
 Écran **Analyse complète**, bouton *Lancer l'analyse* (environ 10 minutes, plus les tests interactifs). Les étapes s'enchaînent seules ; *Passer ce test* saute l'étape en cours. Quitter l'écran n'arrête pas l'analyse.
 
+![Analyse complète terminée : verdict, courbe du processeur et résumé de chaque étape](images/analyse-complete.png)
+
 | Étape | Durée | Ce qui est mesuré |
 |---|---|---|
 | Inventaire | ~10 s | Processeur, mémoire, carte mère, BIOS, carte graphique, réseau, batterie, licence Windows, BitLocker, Secure Boot, TPM, gestion d'entreprise (Intune, Autopilot, domaine) |

@@ -19,7 +19,7 @@ La documentation fait partie de la fonctionnalité : **une pull request qui chan
 | Installation, clé USB, outils tiers | `docs/wiki/Installation.md`, `docs/LISEZMOI-CLE.txt`, `README.md` |
 | Commandes, organisation, convention, piège | Ce fichier (`CLAUDE.md`) et `docs/wiki/Développement.md` |
 | Décision, limite connue, question tranchée | `docs/PLAN.md` |
-| Capture d'écran devenue fausse | Les captures du wiki (voir `docs/wiki/`) |
+| Écran modifié (capture devenue fausse) | Les captures du wiki : `tools/dev/wiki-screenshots.sh` |
 
 Le wiki GitHub est publié automatiquement depuis `docs/wiki/` à chaque mise à jour de `master` (job `wiki` de la CI) : ne le modifie jamais directement sur GitHub, ta modification serait écrasée. Liens entre pages : `[[Nom de la page]]`.
 
@@ -48,13 +48,14 @@ cargo fmt --all
 cd app && npx tsc --noEmit                        # typage de l'interface
 ./tools/assemble-usb.ps1 -Build                   # exe + dossier de la clé dans dist-usb/ (Windows)
 tools/dev/docker-linux-tests.sh                   # tests Linux et tests réels (PhotoRec, TSK, TestDisk) en conteneur
+tools/dev/wiki-screenshots.sh                     # captures du wiki (mode démo, Playwright en conteneur)
 ```
 
 Tests réels ignorés par défaut (`#[ignore]`) : voir l'en-tête de chaque fichier de `crates/recovery/tests/real_*.rs` et `crates/core/src/usb.rs` (`real_disks_links`).
 
 Autotest de l'application : `PCCheck.exe --self-test sortie.json` (avec `__COMPAT_LAYER=RunAsInvoker` pour le lancer sans élévation).
 
-**Mode démo** : hors de Tauri (`npm run dev` dans `app/`, puis un navigateur), l'interface tourne sur des données **fictives** (`app/src/demo/`), avec un bandeau « Mode démonstration ». Les lectures répondent, les actions refusent. Sert aux captures du wiki et aux vidéos d'AgentFly. Quand un type échangé avec l'interface change (disque, rapport, vitesse...), régénère les données : `cargo run -q -p pccheck-assemble --example demo_data > app/src/demo/data.json`, et ajoute dans `app/src/demo/mock.ts` la réponse de toute nouvelle commande de lecture.
+**Mode démo** : hors de Tauri (`npm run dev` dans `app/`, puis un navigateur), l'interface tourne sur des données **fictives** (`app/src/demo/`), avec un bandeau « Mode démonstration ». Les lectures répondent, les actions refusent. Sert aux captures du wiki (`docs/wiki/images/`, régénérées par `tools/dev/wiki-screenshots.sh` ; un nouvel écran s'ajoute dans `wiki-screenshots.mjs`) et aux vidéos d'AgentFly. Quand un type échangé avec l'interface change (disque, rapport, vitesse...), régénère les données : `cargo run -q -p pccheck-assemble --example demo_data > app/src/demo/data.json`, et ajoute dans `app/src/demo/mock.ts` la réponse de toute nouvelle commande de lecture.
 
 ## Conventions
 
@@ -106,7 +107,7 @@ Messages de commit et titres de PR en français, descriptifs, sans préfixe conv
 
 ## AgentFly
 
-Les issues étiquetées `agentflySucettes` sont traitées par AgentFly (voir `agentfly.yml`). Son conteneur n'a ni Windows ni les bibliothèques graphiques de Tauri : il teste le moteur et le typage de l'interface ; la CI du dépôt vérifie le reste sur la pull request. Pas encore de vidéo de démonstration (l'interface a besoin du moteur Tauri pour afficher des données).
+Les issues étiquetées `agentflySucettes` sont traitées par AgentFly (voir `agentfly.yml`). Son conteneur n'a ni Windows ni les bibliothèques graphiques de Tauri : il teste le moteur et le typage de l'interface ; la CI du dépôt vérifie le reste sur la pull request. La vidéo de démonstration tourne sur le serveur Vite en mode démo (section `app` de `agentfly.yml`) : une fonctionnalité qui ajoute une commande de lecture doit répondre dans `app/src/demo/mock.ts`, sinon la vidéo montre une erreur.
 
 ## Pièges connus
 
