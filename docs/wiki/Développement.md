@@ -39,6 +39,8 @@ L'application a un mode d'autotest : `PCCheck.exe --self-test sortie.json` affic
 - Chaque fonctionnalité a sa branche, créée depuis `dev`, et revient dans `dev` par pull request (squash). Ces PR ne lancent **aucune CI**, pour garder le flux rapide ; une fonctionnalité importante est découpée en **pull requests empilées**. Détails dans `CLAUDE.md`.
 - Quand `dev` est prête, une PR `dev` → `master` (commit de fusion) lance `verification.yml` : format, clippy et tests sous Linux, clippy et tests sous Windows.
 - Chaque arrivée sur `master` lance `release.yml` : AppImage Linux et paquet Windows compilés au maximum d'optimisation, en parallèle, vérifiés par l'autotest, puis publiés en release (`tools/ci/release.sh`, une release par commit), et wiki mis à jour.
+- Chaque PR porte ses étiquettes : un type (`bogue`, `amélioration`, `documentation`, `ci`, `dépendances`) et les domaines touchés (`disques`, `machine`, `téléphone`, `récupération`). Détails dans `CLAUDE.md`.
+- Chaque issue et chaque PR est rattachée au **jalon** de la version qui la livrera (0.2, 0.3...) ; le jalon est fermé quand sa release est publiée.
 - Les issues étiquetées `agentflySucettes` sont traitées par AgentFly (`agentfly.yml`) ; AgentFly et Dependabot ouvrent leurs PR vers `dev`.
 
 ## Données personnelles
