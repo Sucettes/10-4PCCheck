@@ -17,6 +17,15 @@ pub enum RecoveryError {
     )]
     PhotorecNotFound { searched: Vec<PathBuf> },
 
+    #[error(
+        "The Sleuth Kit introuvable (cherché dans : {})",
+        pccheck_core::process::display_paths(searched)
+    )]
+    TskNotFound { searched: Vec<PathBuf> },
+
+    #[error("{tool} : {message}")]
+    ToolFailed { tool: String, message: String },
+
     #[error("impossible de lancer {path:?} : {reason}")]
     Spawn { path: PathBuf, reason: String },
 

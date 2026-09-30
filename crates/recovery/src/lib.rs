@@ -19,6 +19,7 @@ pub mod job;
 pub mod log;
 pub mod scan;
 mod sys;
+pub mod tsk;
 pub mod volumes;
 
 pub use advice::{trim_warning, SUPPORT_HELP};
@@ -31,4 +32,8 @@ pub use error::RecoveryError;
 pub use job::{locate_photorec, RecoveryJob, RecoveryProgress};
 pub use log::{parse_log, LogSummary};
 pub use scan::{count_found, list_found, FoundFile, FoundSummary};
+pub use tsk::{
+    list_deleted, locate_tsk, parse_fls, volume_device, DeletedFile, DeletedList, TskJob,
+    TskProgress,
+};
 pub use volumes::{list_volumes, Volume};
