@@ -27,7 +27,10 @@ const BINARY_NAME: &str = "smartctl";
 #[derive(Debug, Clone, Error, Serialize)]
 #[serde(tag = "code", content = "detail", rename_all = "snake_case")]
 pub enum SmartctlError {
-    #[error("smartctl introuvable (cherché dans : {searched:?})")]
+    #[error(
+        "smartctl introuvable (cherché dans : {})",
+        crate::process::display_paths(searched)
+    )]
     NotFound { searched: Vec<PathBuf> },
     #[error("impossible de lancer {path:?} : {reason}")]
     Spawn { path: PathBuf, reason: String },

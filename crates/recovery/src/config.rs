@@ -129,6 +129,9 @@ pub fn build_args(config: &RecoveryConfig) -> Vec<String> {
     ]
 }
 
+/// Formats désactivés même en mode « tout » : trop de faux positifs, aucun intérêt à l'achat.
+const NOISY_FORMATS: [&str; 1] = ["dovecot"];
+
 /// Liste de commandes après le périphérique, séparées par des virgules.
 fn command_list(config: &RecoveryConfig) -> String {
     let mut cmds: Vec<&str> = vec!["partition_none", "options"];
@@ -142,6 +145,9 @@ fn command_list(config: &RecoveryConfig) -> String {
         config.families.is_empty() || config.families.contains(&FileFamily::Everything);
     if everything {
         cmds.extend(["everything", "enable"]);
+        // Faux positifs : PhotoRec prend les zones remplies de zéros pour des index de courriel
+        // Dovecot (des centaines de fichiers inutiles sur une image de test de 64 Mo).
+        cmds.extend(NOISY_FORMATS.iter().flat_map(|f| [*f, "disable"]));
     } else {
         cmds.extend(["everything", "disable"]);
         for format in formats_of(&config.families) {

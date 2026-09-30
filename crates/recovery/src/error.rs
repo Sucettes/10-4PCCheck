@@ -11,7 +11,10 @@ use crate::disk::DiskId;
 #[derive(Debug, Clone, Error, Serialize, PartialEq, Eq)]
 #[serde(tag = "code", content = "detail", rename_all = "snake_case")]
 pub enum RecoveryError {
-    #[error("PhotoRec introuvable (cherché dans : {searched:?})")]
+    #[error(
+        "PhotoRec introuvable (cherché dans : {})",
+        pccheck_core::process::display_paths(searched)
+    )]
     PhotorecNotFound { searched: Vec<PathBuf> },
 
     #[error("impossible de lancer {path:?} : {reason}")]

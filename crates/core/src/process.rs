@@ -13,7 +13,7 @@ use thiserror::Error;
 #[derive(Debug, Clone, Error, Serialize, PartialEq, Eq)]
 #[serde(tag = "code", content = "detail", rename_all = "snake_case")]
 pub enum ProcessError {
-    #[error("{name} introuvable (cherché dans : {searched:?})")]
+    #[error("{name} introuvable (cherché dans : {})", display_paths(searched))]
     NotFound {
         name: String,
         searched: Vec<PathBuf>,
@@ -26,6 +26,21 @@ pub enum ProcessError {
         seconds: u64,
         args: String,
     },
+}
+
+/// Chemins lisibles pour un message : sans le préfixe `\\?\` de Windows (chemins « verbatim »,
+/// renvoyés par exemple pour le dossier de ressources de Tauri), sans doublon, séparés par des
+/// virgules.
+pub fn display_paths(paths: &[PathBuf]) -> String {
+    let mut seen: Vec<String> = Vec::new();
+    for p in paths {
+        let s = p.display().to_string();
+        let s = s.strip_prefix(r"\\?\").map(str::to_string).unwrap_or(s);
+        if !seen.contains(&s) {
+            seen.push(s);
+        }
+    }
+    seen.join(", ")
 }
 
 /// Sortie d'un programme terminé. Le code de sortie n'est pas une erreur ici : certains outils
@@ -149,6 +164,19 @@ mod tests {
             }
             other => panic!("attendu NotFound, obtenu {other:?}"),
         }
+    }
+
+    #[test]
+    fn display_paths_drops_verbatim_duplicates() {
+        let paths = vec![
+            PathBuf::from(r"D:\cle\tools\adb.exe"),
+            PathBuf::from(r"\\?\D:\cle\tools\adb.exe"),
+            PathBuf::from(r"D:\cle\tools\testdisk\adb.exe"),
+        ];
+        assert_eq!(
+            display_paths(&paths),
+            r"D:\cle\tools\adb.exe, D:\cle\tools\testdisk\adb.exe"
+        );
     }
 
     #[cfg(unix)]

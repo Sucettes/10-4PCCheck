@@ -137,7 +137,8 @@ export function RecoveryPage({ disks }: { disks: Load<DiskEntry[]> }) {
             <span className="muted small">Dossier où écrire les fichiers retrouvés</span>
             <input type="text" value={dest} onChange={(e) => setDest(e.target.value)} spellCheck={false} />
           </label>
-          {destVolume && (
+          {!source && <p className="small muted">Choisis d'abord la source (étape 1).</p>}
+          {source && destVolume && (
             <p className={sameDisk ? "small text-bad" : "small text-good"}>
               {sameDisk
                 ? "Sur le même disque que la source : interdit, les fichiers retrouvés écraseraient ceux à récupérer."

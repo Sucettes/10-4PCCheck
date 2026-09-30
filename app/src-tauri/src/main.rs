@@ -223,6 +223,16 @@ fn tool_dirs(app: &AppHandle) -> Vec<PathBuf> {
     if let Ok(resources) = app.path().resource_dir() {
         dirs.push(resources.join("tools"));
     }
+    // Le dossier de ressources est souvent celui de l'exécutable, en forme « verbatim » (\\?\D:\…) :
+    // même dossier, cherché deux fois sinon.
+    let mut seen = Vec::new();
+    dirs.retain(|d| {
+        let key = d.display().to_string();
+        let key = key.strip_prefix(r"\\?\").unwrap_or(&key).to_lowercase();
+        let new = !seen.contains(&key);
+        seen.push(key);
+        new
+    });
     // PhotoRec est livré avec ses DLL dans un sous-dossier.
     let with_testdisk: Vec<PathBuf> = dirs.iter().map(|d| d.join("testdisk")).collect();
     dirs.extend(with_testdisk);

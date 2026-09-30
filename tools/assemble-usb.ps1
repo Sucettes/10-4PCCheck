@@ -25,7 +25,12 @@ $exe = Join-Path $root "target\release\pccheck.exe"
 if (-not (Test-Path $exe)) { throw "Exe absent : lancer avec -Build" }
 
 New-Item -ItemType Directory -Force (Join-Path $win "tools"), (Join-Path $usb "rapports"), (Join-Path $usb "recup") | Out-Null
-Copy-Item $exe (Join-Path $win "10-4-pccheck.exe") -Force
+try {
+    Copy-Item $exe (Join-Path $win "10-4-pccheck.exe") -Force -ErrorAction Stop
+} catch {
+    # Application ouverte : l'exécutable est verrouillé. Les outils sont quand même copiés.
+    Write-Warning "10-4-pccheck.exe en cours d'utilisation : non remplacé (ferme l'application et relance ce script)"
+}
 
 $tools = Join-Path $root "tools\windows"
 foreach ($f in "smartctl.exe", "adb.exe", "AdbWinApi.dll", "AdbWinUsbApi.dll", "VERSIONS.txt") {

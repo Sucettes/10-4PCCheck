@@ -38,7 +38,8 @@ fn whole_windows_disk_everything() {
             recup_arg(),
             "/cmd".into(),
             r"\\.\PhysicalDrive1".into(),
-            "partition_none,options,paranoid,fileopt,everything,enable,search".into(),
+            "partition_none,options,paranoid,fileopt,everything,enable,dovecot,disable,search"
+                .into(),
         ]
     );
 }
@@ -95,7 +96,7 @@ fn everything_overrides_other_families() {
     );
     let args = build_args(&c);
     assert_eq!(args[4], "/dev/nvme0n1");
-    assert!(args[5].ends_with("fileopt,everything,enable,search"));
+    assert!(args[5].ends_with("fileopt,everything,enable,dovecot,disable,search"));
     assert!(!args[5].contains("mov"));
 }
 

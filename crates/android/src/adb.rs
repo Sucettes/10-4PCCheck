@@ -38,7 +38,10 @@ const MAX_SERIAL_LEN: usize = 128;
 #[derive(Debug, Clone, Error, Serialize, PartialEq, Eq)]
 #[serde(tag = "code", content = "detail", rename_all = "snake_case")]
 pub enum AdbError {
-    #[error("adb introuvable (cherché dans : {searched:?})")]
+    #[error(
+        "adb introuvable (cherché dans : {})",
+        pccheck_core::process::display_paths(searched)
+    )]
     NotFound { searched: Vec<PathBuf> },
     #[error("impossible de lancer {path:?} : {reason}")]
     Spawn { path: PathBuf, reason: String },
