@@ -14,8 +14,11 @@ use pccheck_recovery::{
 use serde::Serialize;
 use tauri::{AppHandle, State};
 
+use crate::cache::Cache;
 use crate::jobs::Jobs;
 use crate::{tool_dirs, usb_root, CommandError};
+use pccheck_assemble::{RecoveryMethod, RecoverySession};
+use pccheck_recovery::tsk::count_by_extension;
 
 const POLL: Duration = Duration::from_secs(1);
 
@@ -94,7 +97,15 @@ pub fn start_recovery(
     paranoid: bool,
     app: AppHandle,
     jobs: State<'_, Arc<Jobs>>,
+    cache: State<'_, Cache>,
 ) -> Result<String, CommandError> {
+    let source = disk_label(&cache, &disk);
+    let family_labels: Vec<String> = families
+        .iter()
+        .map(|f| family_label(*f).to_string())
+        .collect();
+    let dest_text = destination.clone();
+    let cache = cache.inner().clone();
     let disk = disk_from_smartctl_name(&disk).map_err(tool_err)?;
     let photorec = locate_photorec(&tool_dirs(&app)).map_err(tool_err)?;
     let config = RecoveryConfig {
@@ -104,17 +115,34 @@ pub fn start_recovery(
         paranoid,
     };
     let mut job = RecoveryJob::start(config, &photorec).map_err(tool_err)?;
-    jobs.start(&app, "recovery".into(), move |ctx| loop {
-        if ctx.cancel.load(Ordering::Relaxed) {
-            job.stop();
-            return Ok::<_, ()>(job.progress());
-        }
-        let p = job.progress();
-        ctx.progress(&p);
-        if !p.running {
-            return Ok(p);
-        }
-        std::thread::sleep(POLL);
+    jobs.start(&app, "recovery".into(), move |ctx| {
+        let p = loop {
+            if ctx.cancel.load(Ordering::Relaxed) {
+                job.stop();
+                break job.progress();
+            }
+            let p = job.progress();
+            ctx.progress(&p);
+            if !p.running {
+                break p;
+            }
+            std::thread::sleep(POLL);
+        };
+        cache.lock().recovery = Some(RecoverySession {
+            method: RecoveryMethod::Photorec,
+            source,
+            destination: dest_text,
+            duration_s: p.elapsed_s,
+            files: p.files_found,
+            bytes: p.bytes_found,
+            by_extension: p.by_extension.clone(),
+            stopped_by_user: p.stopped_by_user,
+            problem: p.problem.clone(),
+            failed: Vec::new(),
+            families: family_labels,
+            tool: None,
+        });
+        Ok::<_, ()>(p)
     })
     .map_err(CommandError::Internal)?;
     Ok("recovery".into())
@@ -165,23 +193,42 @@ pub fn start_tsk(
     destination: String,
     app: AppHandle,
     jobs: State<'_, Arc<Jobs>>,
+    cache: State<'_, Cache>,
 ) -> Result<String, CommandError> {
     let tsk = locate_tsk(&tool_dirs(&app)).map_err(tool_err)?;
-    let mut job = TskJob::start(&tsk, &PathBuf::from(volume), &PathBuf::from(destination))
-        .map_err(tool_err)?;
-    jobs.start(&app, "tsk".into(), move |ctx| loop {
-        if ctx.cancel.load(Ordering::Relaxed) {
-            job.stop();
-            return Ok::<_, ()>(job.progress());
-        }
-        let p = job.progress();
-        ctx.progress(&p);
-        if !p.running {
-            // Dernière lecture : laisse au fil de sortie le temps de rendre le compte final.
-            std::thread::sleep(Duration::from_millis(300));
-            return Ok(job.progress());
-        }
-        std::thread::sleep(POLL);
+    let dest = PathBuf::from(&destination);
+    let mut job = TskJob::start(&tsk, &PathBuf::from(&volume), &dest).map_err(tool_err)?;
+    let cache = cache.inner().clone();
+    jobs.start(&app, "tsk".into(), move |ctx| {
+        let p = loop {
+            if ctx.cancel.load(Ordering::Relaxed) {
+                job.stop();
+                break job.progress();
+            }
+            let p = job.progress();
+            ctx.progress(&p);
+            if !p.running {
+                // Dernière lecture : laisse au fil de sortie le temps de rendre le compte final.
+                std::thread::sleep(Duration::from_millis(300));
+                break job.progress();
+            }
+            std::thread::sleep(POLL);
+        };
+        cache.lock().recovery = Some(RecoverySession {
+            method: RecoveryMethod::SleuthKitAll,
+            source: volume,
+            destination,
+            duration_s: p.elapsed_s,
+            files: p.files_found,
+            bytes: p.bytes_found,
+            by_extension: count_by_extension(&dest),
+            stopped_by_user: p.stopped_by_user,
+            problem: None,
+            failed: Vec::new(),
+            families: Vec::new(),
+            tool: None,
+        });
+        Ok::<_, ()>(p)
     })
     .map_err(CommandError::Internal)?;
     Ok("tsk".into())
@@ -194,16 +241,63 @@ pub async fn tsk_recover_selected(
     files: Vec<SelectedFile>,
     destination: String,
     app: AppHandle,
+    cache: State<'_, Cache>,
 ) -> Result<SelectionResult, CommandError> {
+    let cache = cache.inner().clone();
     crate::blocking(move || {
+        let started = std::time::Instant::now();
         let tsk = locate_tsk(&tool_dirs(&app)).map_err(tool_err)?;
-        recover_selected(
-            &tsk,
-            &PathBuf::from(volume),
-            &files,
-            &PathBuf::from(destination),
-        )
-        .map_err(tool_err)
+        let dest = PathBuf::from(&destination);
+        let r = recover_selected(&tsk, &PathBuf::from(&volume), &files, &dest).map_err(tool_err)?;
+        let mut by_extension = std::collections::BTreeMap::new();
+        for f in files
+            .iter()
+            .filter(|f| !r.failed.iter().any(|(p, _)| p == &f.path))
+        {
+            let ext = std::path::Path::new(&f.path)
+                .extension()
+                .map(|x| x.to_string_lossy().to_lowercase())
+                .unwrap_or_else(|| "(sans)".into());
+            *by_extension.entry(ext).or_insert(0u64) += 1;
+        }
+        cache.lock().recovery = Some(RecoverySession {
+            method: RecoveryMethod::SleuthKitSelection,
+            source: volume,
+            destination,
+            duration_s: started.elapsed().as_secs(),
+            files: r.recovered,
+            bytes: r.bytes,
+            by_extension,
+            stopped_by_user: false,
+            problem: None,
+            failed: r.failed.iter().map(|(p, _)| p.clone()).collect(),
+            families: Vec::new(),
+            tool: None,
+        });
+        Ok(r)
     })
     .await?
+}
+
+fn family_label(f: FileFamily) -> &'static str {
+    match f {
+        FileFamily::Photos => "Photos",
+        FileFamily::Documents => "Documents",
+        FileFamily::Videos => "Vidéos",
+        FileFamily::Audio => "Audio",
+        FileFamily::Archives => "Archives",
+        FileFamily::Everything => "Tout",
+    }
+}
+
+/// Nom lisible d'un disque (modèle), d'après le dernier scan.
+fn disk_label(cache: &Cache, name: &str) -> String {
+    cache
+        .lock()
+        .disks
+        .iter()
+        .find(|e| e.device.name == name)
+        .and_then(|e| e.info.as_ref().and_then(|i| i.model.clone()))
+        .map(|m| format!("{m} ({name})"))
+        .unwrap_or_else(|| name.to_string())
 }

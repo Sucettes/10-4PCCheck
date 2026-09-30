@@ -23,6 +23,9 @@ use pccheck_report::{
 };
 use serde::{Deserialize, Serialize};
 
+mod recovery;
+pub use recovery::{build_recovery_report, RecoveryMethod, RecoverySession};
+
 const TOOL_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Analyse d'un téléphone telle qu'envoyée à l'interface et gardée pour le rapport.
@@ -46,6 +49,8 @@ pub struct Results {
     pub self_tests: HashMap<String, SelfTestStatus>,
     pub capacity: Option<CapacityResult>,
     pub phone: Option<PhoneAnalysis>,
+    /// Dernière récupération terminée (PhotoRec ou The Sleuth Kit).
+    pub recovery: Option<RecoverySession>,
 }
 
 /// Résultat d'un test interactif, envoyé par l'interface (le moteur ne le voit pas autrement).

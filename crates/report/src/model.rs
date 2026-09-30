@@ -75,6 +75,8 @@ pub enum SubjectKind {
     Machine,
     Disk,
     Phone,
+    /// Session de récupération de fichiers (PhotoRec, The Sleuth Kit).
+    Recovery,
 }
 
 impl SubjectKind {
@@ -83,6 +85,7 @@ impl SubjectKind {
             SubjectKind::Machine => "Ordinateur",
             SubjectKind::Disk => "Disque",
             SubjectKind::Phone => "Téléphone",
+            SubjectKind::Recovery => "Récupération",
         }
     }
 }
@@ -159,11 +162,20 @@ pub struct Verdict {
 impl Verdict {
     /// Libellé d'achat : Bon achat, À négocier, À éviter.
     pub fn label(&self) -> &'static str {
-        match self.level {
-            Level::Ok => "Bon achat",
-            Level::Warn => "À négocier",
-            Level::Bad => "À éviter",
-            Level::Info | Level::Neutral => "Sans verdict",
+        self.label_for(SubjectKind::Machine)
+    }
+
+    /// Libellé selon ce qui a été analysé : verdict d'achat, ou résultat d'une récupération.
+    pub fn label_for(&self, kind: SubjectKind) -> &'static str {
+        match (kind, self.level) {
+            (SubjectKind::Recovery, Level::Ok) => "Récupération réussie",
+            (SubjectKind::Recovery, Level::Warn) => "Récupération partielle",
+            (SubjectKind::Recovery, Level::Bad) => "Récupération sans résultat",
+            (SubjectKind::Recovery, _) => "Récupération interrompue",
+            (_, Level::Ok) => "Bon achat",
+            (_, Level::Warn) => "À négocier",
+            (_, Level::Bad) => "À éviter",
+            (_, Level::Info | Level::Neutral) => "Sans verdict",
         }
     }
 }

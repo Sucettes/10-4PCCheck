@@ -105,7 +105,7 @@ fn verdict_banner(h: &mut String, report: &Report) {
          <div class=\"c-bad\"><dt>Critiques</dt><dd>{bad}</dd></div>\
          </dl></section>",
         key = v.level.key(),
-        label = escape_html(v.label()),
+        label = escape_html(v.label_for(report.subject.kind)),
         summary = escape_html(&v.summary),
         ok = v.ok,
         warn = v.warn,

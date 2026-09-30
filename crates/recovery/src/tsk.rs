@@ -385,6 +385,30 @@ pub fn extract_files(
     result
 }
 
+/// Nombre de fichiers par extension (en minuscules) sous `dir`, récursivement.
+pub fn count_by_extension(dir: &Path) -> std::collections::BTreeMap<String, u64> {
+    let mut out = std::collections::BTreeMap::new();
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&d) else {
+            continue;
+        };
+        for e in entries.flatten() {
+            let path = e.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else {
+                let ext = path
+                    .extension()
+                    .map(|x| x.to_string_lossy().to_lowercase())
+                    .unwrap_or_else(|| "(sans)".into());
+                *out.entry(ext).or_insert(0) += 1;
+            }
+        }
+    }
+    out
+}
+
 /// Fichiers et octets sous `dir`, récursivement.
 pub fn count_files(dir: &Path) -> (u64, u64) {
     let mut files = 0;

@@ -23,7 +23,7 @@ export interface Report {
   tool_version: string;
   generated_at: string;
   title: string;
-  subject: { kind: "machine" | "disk" | "phone"; name: string; details: { label: string; value: string }[] };
+  subject: { kind: "machine" | "disk" | "phone" | "recovery"; name: string; details: { label: string; value: string }[] };
   verdict: { level: Level; summary: string; ok: number; warn: number; bad: number };
   sections: ReportSection[];
 }
@@ -31,7 +31,7 @@ export interface Report {
 export interface ReportSummary {
   id: string;
   title: string;
-  subject_kind: "machine" | "disk" | "phone";
+  subject_kind: "machine" | "disk" | "phone" | "recovery";
   generated_at: string;
   verdict_level: Level;
   json_path: string;

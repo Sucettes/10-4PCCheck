@@ -4,13 +4,21 @@ import { errorMessage, type Load } from "./load";
 import type { Level, ReportSummary } from "./moreTypes";
 import { openPath } from "./ReportButton";
 
-const KINDS = { machine: "Ordinateur", disk: "Disque", phone: "Téléphone" } as const;
+const KINDS = { machine: "Ordinateur", disk: "Disque", phone: "Téléphone", recovery: "Récupération" } as const;
 const VERDICTS: Record<Level, { label: string; cls: string }> = {
   ok: { label: "Bon achat", cls: "pill-good" },
   warn: { label: "À négocier", cls: "pill-warn" },
   info: { label: "À vérifier", cls: "pill-warn" },
   bad: { label: "À éviter", cls: "pill-bad" },
   neutral: { label: "Sans verdict", cls: "pill-neutral" },
+};
+/** Résultat d'une récupération : les libellés d'achat n'y ont pas de sens (crates/report, `label_for`). */
+const RECOVERY_LABELS: Record<Level, string> = {
+  ok: "Réussie",
+  warn: "Partielle",
+  bad: "Sans résultat",
+  info: "Interrompue",
+  neutral: "Interrompue",
 };
 
 const dateFmt = new Intl.DateTimeFormat("fr-CA", { dateStyle: "medium", timeStyle: "short" });
@@ -56,7 +64,8 @@ export function ReportTable({ reports }: { reports: ReportSummary[] }) {
   return (
     <div className="report-list" role="table" aria-label="Rapports enregistrés">
       {reports.map((r) => {
-        const v = VERDICTS[r.verdict_level];
+        const base = VERDICTS[r.verdict_level];
+        const v = r.subject_kind === "recovery" ? { ...base, label: RECOVERY_LABELS[r.verdict_level] } : base;
         return (
           <div className="report-row" role="row" key={r.id}>
             <span role="cell" className="report-title">

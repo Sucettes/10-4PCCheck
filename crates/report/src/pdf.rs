@@ -122,7 +122,7 @@ impl<'a> PdfData<'a> {
             hash: report_hash(report),
             date: date_fr(&report.generated_at),
             subject_kind: report.subject.kind.label(),
-            verdict_label: report.verdict.label(),
+            verdict_label: report.verdict.label_for(report.subject.kind),
             level_labels: LevelLabels {
                 ok: Level::Ok.label(),
                 info: Level::Info.label(),

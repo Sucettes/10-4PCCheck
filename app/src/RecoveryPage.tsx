@@ -7,6 +7,7 @@ import type { FileFamily, RecoveryProgress, RecoveryStatus } from "./moreTypes";
 import type { DiskEntry, DiskInfo } from "./types";
 import { TestDiskTerminal } from "./TestDiskTerminal";
 import { TskPanel } from "./TskPanel";
+import { ReportButton } from "./ReportButton";
 
 type Mode = "photorec" | "tsk" | "testdisk";
 /** Onglet gardé entre deux passages sur l'écran (TestDisk peut tourner en arrière-plan). */
@@ -221,6 +222,7 @@ export function RecoveryPage({ disks }: { disks: Load<DiskEntry[]> }) {
               </>
             )}
             {p.problem && <p className="text-bad small">{p.problem}</p>}
+            {!job.running && job.result && <ReportButton command="save_recovery_report" />}
             <div className="ext-counts">
               {Object.entries(p.by_extension)
                 .sort((a, b) => b[1] - a[1])

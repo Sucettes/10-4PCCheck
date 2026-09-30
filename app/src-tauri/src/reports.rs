@@ -4,7 +4,8 @@
 use std::path::{Path, PathBuf};
 
 use pccheck_assemble::{
-    build_disk_report, build_machine_report, build_phone_report, InteractiveEntry,
+    build_disk_report, build_machine_report, build_phone_report, build_recovery_report,
+    InteractiveEntry,
 };
 use pccheck_report::{
     self as report, ChecklistEntry, Report, ReportSummary, SavedReport, ToolVersion,
@@ -135,4 +136,18 @@ pub(crate) fn open_with_system(path: &Path) -> std::io::Result<()> {
     // L'explorateur renvoie souvent un code non nul même quand il a ouvert le fichier : on ne
     // vérifie que le lancement.
     cmd.arg(path).spawn().map(|_| ())
+}
+
+/// Rapport de la dernière récupération terminée.
+#[tauri::command]
+pub async fn save_recovery_report(cache: State<'_, Cache>) -> Result<SavedReport, CommandError> {
+    let cache = cache.inner().clone();
+    blocking(move || {
+        let session = cache.lock().recovery.clone().ok_or_else(|| {
+            CommandError::Internal("aucune récupération terminée dans cette session".into())
+        })?;
+        let mut rep = build_recovery_report(&session);
+        save(&mut rep)
+    })
+    .await?
 }

@@ -399,6 +399,7 @@ fn main() {
             reports::save_phone_report,
             reports::save_machine_report,
             reports::preview_machine_report,
+            reports::save_recovery_report,
             reports::list_reports,
             reports::open_report_file,
             self_test_report

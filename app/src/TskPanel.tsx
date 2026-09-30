@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { formatBytes } from "./format";
 import { cancelJob, isOk, useJob } from "./jobs";
 import { errorMessage } from "./load";
+import { ReportButton } from "./ReportButton";
 import type { DeletedFile, DeletedList, RecoveryStatus, TskProgress } from "./moreTypes";
 
 interface SelectionResult {
@@ -211,9 +212,12 @@ export function TskPanel({ status }: { status: RecoveryStatus }) {
                   <span className="text-bad"> · {picked.failed.length} illisible(s) : {picked.failed.slice(0, 3).map((f) => f[0]).join(", ")}</span>
                 )}
               </span>
-              <button type="button" className="btn" onClick={() => void invoke("open_folder", { path: dest })}>
-                Ouvrir le dossier
-              </button>
+              <span className="header-actions">
+                <button type="button" className="btn" onClick={() => void invoke("open_folder", { path: dest })}>
+                  Ouvrir le dossier
+                </button>
+                <ReportButton command="save_recovery_report" />
+              </span>
             </div>
           )}
           {p && (
@@ -231,9 +235,12 @@ export function TskPanel({ status }: { status: RecoveryStatus }) {
                     </button>
                   )}
                   {!job.running && (
-                    <button type="button" className="btn" onClick={() => void invoke("open_folder", { path: dest })}>
-                      Ouvrir le dossier
-                    </button>
+                    <>
+                      <button type="button" className="btn" onClick={() => void invoke("open_folder", { path: dest })}>
+                        Ouvrir le dossier
+                      </button>
+                      <ReportButton command="save_recovery_report" />
+                    </>
                   )}
                 </span>
               </div>
