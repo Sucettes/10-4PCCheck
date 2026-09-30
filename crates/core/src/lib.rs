@@ -4,11 +4,14 @@
 //! les mêmes fonctions, et tout ce qui sort d'ici est sérialisable en JSON.
 
 pub mod attributes;
+pub mod capacity;
 pub mod checks;
 pub mod disk;
 pub mod process;
+pub mod rawio;
 pub mod selftest;
 pub mod smartctl;
+pub mod surface;
 
 pub use attributes::AttributeStatus;
 pub use checks::{Check, CheckLevel};
