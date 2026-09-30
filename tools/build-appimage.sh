@@ -5,7 +5,7 @@
 #
 # Prérequis sur l'hôte : Docker, Rust (rustup) et Node installés, tools/linux/smartctl présent
 # (tools/build-smartctl-linux.sh). Les chaînes d'outils de l'hôte sont montées dans le conteneur.
-# Résultat : dist-usb/linux/10-4-pccheck.AppImage
+# Résultat : dist-usb/linux/PCCheck.AppImage
 #
 # Réseau filtré (proxy) : l'étape finale de linuxdeploy télécharge le runtime AppImage sans passer
 # par l'autorité de certification du proxy et échoue. Dans ce cas, fournir le runtime et appimagetool
@@ -59,7 +59,7 @@ if [ "$BUILD_STATUS" -ne 0 ]; then
   if [ -n "${APPIMAGE_RUNTIME_FILE:-}" ] && [ -n "${APPIMAGETOOL:-}" ] && [ -n "$APPDIR" ]; then
     echo "Empaquetage final avec le runtime fourni ($APPIMAGE_RUNTIME_FILE)"
     APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 "$APPIMAGETOOL" --no-appstream \
-      --runtime-file "$APPIMAGE_RUNTIME_FILE" "$APPDIR" "$BUNDLE_DIR/10-4-pccheck.AppImage"
+      --runtime-file "$APPIMAGE_RUNTIME_FILE" "$APPDIR" "$BUNDLE_DIR/PCCheck.AppImage"
   else
     echo "ERREUR : la construction a échoué (code $BUILD_STATUS)" >&2
     exit "$BUILD_STATUS"
@@ -68,6 +68,6 @@ fi
 
 OUT="$ROOT/dist-usb/linux"
 mkdir -p "$OUT"
-cp "$BUNDLE_DIR"/*.AppImage "$OUT/10-4-pccheck.AppImage"
-chmod 755 "$OUT/10-4-pccheck.AppImage"
+cp "$BUNDLE_DIR"/*.AppImage "$OUT/PCCheck.AppImage"
+chmod 755 "$OUT/PCCheck.AppImage"
 ls -la "$OUT"

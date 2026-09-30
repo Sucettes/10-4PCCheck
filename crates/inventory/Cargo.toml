@@ -1,6 +1,6 @@
 [package]
 name = "pccheck-inventory"
-description = "10-4 PCCheck : inventaire matériel, batterie, sécurité Windows, test de charge CPU et test RAM partiel."
+description = "PCCheck : inventaire matériel, batterie, sécurité Windows, test de charge CPU et test RAM partiel."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

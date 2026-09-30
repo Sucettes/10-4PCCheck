@@ -26,7 +26,7 @@ const CHUNK: usize = 4 << 20;
 const FILE_BYTES: u64 = 1 << 30;
 /// Espace laissé libre pour ne pas bloquer le système de fichiers.
 const MARGIN_BYTES: u64 = 32 << 20;
-const TEST_DIR: &str = "10-4-capacite-test";
+const TEST_DIR: &str = "pccheck-capacite-test";
 const PROGRESS_EVERY: Duration = Duration::from_millis(250);
 
 #[derive(Debug, Clone, Error, Serialize)]

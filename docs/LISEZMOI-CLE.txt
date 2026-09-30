@@ -1,8 +1,8 @@
-10-4 PCCheck - clé de diagnostic
+PCCheck - clé de diagnostic
 ================================
 
 WINDOWS
-1. Ouvre le dossier windows\ et lance 10-4-pccheck.exe (pas d'exécution automatique depuis une clé).
+1. Ouvre le dossier windows\ et lance PCCheck.exe (pas d'exécution automatique depuis une clé).
 2. « Windows a protégé votre ordinateur » (SmartScreen) : clique « Informations complémentaires »,
    puis « Exécuter quand même ». L'outil n'est pas signé, c'est normal.
 3. Accepte l'invite administrateur : sans elle, ni le SMART des disques ni le scan de surface ne
@@ -10,8 +10,8 @@ WINDOWS
 
 LINUX
 1. Ouvre le dossier linux\, rends l'AppImage exécutable si besoin (clic droit > Propriétés,
-   ou chmod +x 10-4-pccheck.AppImage) et lance-la.
-2. Pour les données SMART : sudo ./10-4-pccheck.AppImage
+   ou chmod +x PCCheck.AppImage) et lance-la.
+2. Pour les données SMART : sudo ./PCCheck.AppImage
 
 DOSSIERS
 - rapports\ : rapports générés (JSON, HTML, PDF). Le HTML s'ouvre dans n'importe quel navigateur,

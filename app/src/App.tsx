@@ -92,7 +92,7 @@ function Sidebar({ info, page, go }: { info: Load<AppInfo>; page: Page; go: (p: 
     <nav className="sidebar" aria-label="Navigation principale">
       <div className="brand">
         <BrandMark />
-        <div className="brand-name">10-4 PCCheck</div>
+        <div className="brand-name">PCCheck</div>
       </div>
       {NAV.map((n) => (
         <a
@@ -124,7 +124,7 @@ function Sidebar({ info, page, go }: { info: Load<AppInfo>; page: Page; go: (p: 
                 ? info.value.smartctl.version.split(" ").slice(0, 2).join(" ")
                 : "smartctl : indisponible"}
             </div>
-            <div>10-4 PCCheck {info.value.version}</div>
+            <div>PCCheck {info.value.version}</div>
           </>
         )}
       </div>

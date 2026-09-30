@@ -1,4 +1,4 @@
-# 10-4 PCCheck
+# PCCheck
 
 Outil de diagnostic portable, sur clé USB, pour vérifier un appareil d'occasion avant de l'acheter. Rien à installer sur la machine analysée : on branche la clé, on lance l'exécutable, on obtient un verdict (Bon achat / À négocier / À éviter) et un rapport HTML + PDF.
 
@@ -15,7 +15,7 @@ Chaque donnée affichée a une info-bulle qui explique d'où elle vient et comme
 
 ## Utilisation
 
-Voir `docs/LISEZMOI-CLE.txt` (copié à la racine de la clé). En bref : lancer `windows\10-4-pccheck.exe`, accepter l'invite administrateur (nécessaire pour lire les disques), choisir un mode. Les rapports sont écrits dans `rapports\` sur la clé.
+Voir `docs/LISEZMOI-CLE.txt` (copié à la racine de la clé). En bref : lancer `windows\PCCheck.exe`, accepter l'invite administrateur (nécessaire pour lire les disques), choisir un mode. Les rapports sont écrits dans `rapports\` sur la clé.
 
 Clé bootable (MemTest86+, Linux de secours) : `docs/CLE-BOOTABLE.md`.
 

@@ -104,7 +104,7 @@ impl ChildProcess {
         if ok == 0 {
             let err = io::Error::last_os_error();
             let reason = if err.raw_os_error() == Some(ERROR_ELEVATION_REQUIRED as i32) {
-                "PhotoRec demande les droits administrateur : relance 10-4 PCCheck en administrateur"
+                "PhotoRec demande les droits administrateur : relance PCCheck en administrateur"
                     .to_string()
             } else {
                 err.to_string()

@@ -70,16 +70,16 @@ jobs:
       - name: Autotest de l'AppImage
         run: |
           mkdir -p usb/linux
-          cp target/release/bundle/appimage/*.AppImage usb/linux/10-4-pccheck.AppImage
-          chmod +x usb/linux/10-4-pccheck.AppImage
-          timeout 120 xvfb-run -a usb/linux/10-4-pccheck.AppImage --self-test "$PWD/selftest-linux.json"
+          cp target/release/bundle/appimage/*.AppImage usb/linux/PCCheck.AppImage
+          chmod +x usb/linux/PCCheck.AppImage
+          timeout 120 xvfb-run -a usb/linux/PCCheck.AppImage --self-test "$PWD/selftest-linux.json"
           cat selftest-linux.json
           jq -e '.ok == true and .appInfo.smartctl.status == "ready"' selftest-linux.json
       # Non bloquant : le quota de stockage d'artefacts du compte GitHub peut être atteint.
       - uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
-          name: 10-4-pccheck-linux
+          name: pccheck-linux
           retention-days: 1
           path: |
             usb/linux/
@@ -123,14 +123,14 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force usb\windows\tools | Out-Null
-          Copy-Item target\release\pccheck.exe usb\windows\10-4-pccheck.exe
+          Copy-Item target\release\pccheck.exe usb\windows\PCCheck.exe
           Copy-Item tools\windows\smartctl.exe usb\windows\tools\smartctl.exe
           Get-ChildItem -Recurse usb\windows | Select-Object FullName, Length
       - name: Autotest
         shell: pwsh
         run: |
           $out = "$PWD\selftest-windows.json"
-          $p = Start-Process -FilePath usb\windows\10-4-pccheck.exe -ArgumentList "--self-test", "`"$out`"" -PassThru
+          $p = Start-Process -FilePath usb\windows\PCCheck.exe -ArgumentList "--self-test", "`"$out`"" -PassThru
           if (-not $p.WaitForExit(120000)) { $p.Kill(); throw "autotest : délai dépassé" }
           Write-Host "code de sortie : $($p.ExitCode)"
           if (-not (Test-Path $out)) { throw "autotest : aucun rapport écrit" }
@@ -142,7 +142,7 @@ jobs:
       - name: Capture d'écran
         shell: pwsh
         run: |
-          $p = Start-Process -FilePath usb\windows\10-4-pccheck.exe -PassThru
+          $p = Start-Process -FilePath usb\windows\PCCheck.exe -PassThru
           Start-Sleep -Seconds 12
           Add-Type -AssemblyName System.Windows.Forms, System.Drawing
           $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
@@ -165,7 +165,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
-          name: 10-4-pccheck-windows
+          name: pccheck-windows
           retention-days: 1
           path: |
             usb/windows/

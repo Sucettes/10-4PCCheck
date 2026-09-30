@@ -18,7 +18,7 @@ pub const SCHEMA_VERSION: u32 = 1;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Report {
     pub schema_version: u32,
-    /// Version de 10-4 PCCheck qui a produit le rapport.
+    /// Version de PCCheck qui a produit le rapport.
     pub tool_version: String,
     /// Date de génération, heure locale avec son décalage (RFC 3339, ex. `2026-09-29T14:30:00-04:00`).
     pub generated_at: DateTime<FixedOffset>,

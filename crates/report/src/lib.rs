@@ -1,4 +1,4 @@
-//! 10-4 PCCheck : rapport d'analyse.
+//! PCCheck : rapport d'analyse.
 //!
 //! - [`Report`] : schéma JSON versionné ([`SCHEMA_VERSION`]), source unique de l'écran, du HTML
 //!   et du PDF.

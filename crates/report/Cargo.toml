@@ -1,6 +1,6 @@
 [package]
 name = "pccheck-report"
-description = "10-4 PCCheck : rapport versionné, verdict, export HTML et PDF."
+description = "PCCheck : rapport versionné, verdict, export HTML et PDF."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

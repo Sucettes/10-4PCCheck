@@ -24,7 +24,7 @@ run_in() {
   # APPIMAGE_EXTRACT_AND_RUN : pas de FUSE dans un conteneur.
   # Délai appliqué côté hôte : le `timeout` de certaines images (Fedora 44) échoue en conteneur.
   timeout 150 docker run --rm --entrypoint "" -e DISPLAY="$DISP" -e APPIMAGE_EXTRACT_AND_RUN=1 \
-    -v /tmp/.X11-unix:/tmp/.X11-unix -v "$APPIMAGE:/app/10-4-pccheck.AppImage:ro" -v "$OUT:/out" \
+    -v /tmp/.X11-unix:/tmp/.X11-unix -v "$APPIMAGE:/app/PCCheck.AppImage:ro" -v "$OUT:/out" \
     "$image" "$@"
 }
 
@@ -32,7 +32,7 @@ status=0
 for image in "${IMAGES[@]}"; do
   tag="$(echo "$image" | tr '/:' '__')"
   echo "== $image"
-  if run_in "$image" /app/10-4-pccheck.AppImage --self-test "/out/selftest-$tag.json" > "$OUT/log-$tag.txt" 2>&1 \
+  if run_in "$image" /app/PCCheck.AppImage --self-test "/out/selftest-$tag.json" > "$OUT/log-$tag.txt" 2>&1 \
      && grep -q '"ok": true' "$OUT/selftest-$tag.json" && grep -q '"status": "ready"' "$OUT/selftest-$tag.json"; then
     echo "   autotest : OK"
   else
@@ -41,8 +41,8 @@ for image in "${IMAGES[@]}"; do
 
   # Capture : l'app tourne en arrière-plan le temps de la prise de vue.
   cid="$(docker run -d --rm --entrypoint "" -e DISPLAY="$DISP" -e APPIMAGE_EXTRACT_AND_RUN=1 \
-    -v /tmp/.X11-unix:/tmp/.X11-unix -v "$APPIMAGE:/app/10-4-pccheck.AppImage:ro" \
-    "$image" /app/10-4-pccheck.AppImage)"
+    -v /tmp/.X11-unix:/tmp/.X11-unix -v "$APPIMAGE:/app/PCCheck.AppImage:ro" \
+    "$image" /app/PCCheck.AppImage)"
   sleep 12
   DISPLAY="$DISP" import -window root "$OUT/screenshot-$tag.png"
   docker kill "$cid" >/dev/null 2>&1 || true

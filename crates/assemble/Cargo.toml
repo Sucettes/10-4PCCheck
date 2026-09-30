@@ -1,6 +1,6 @@
 [package]
 name = "pccheck-assemble"
-description = "10-4 PCCheck : construction des rapports (disque, téléphone, machine) à partir des mesures."
+description = "PCCheck : construction des rapports (disque, téléphone, machine) à partir des mesures."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

@@ -40,7 +40,7 @@ pub fn to_html(report: &Report) -> String {
         "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; \
          style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:\">\n",
     );
-    let _ = writeln!(h, "<title>{} · 10-4 PCCheck</title>", e(&report.title));
+    let _ = writeln!(h, "<title>{} · PCCheck</title>", e(&report.title));
     let _ = writeln!(
         h,
         "<style>{CSS}</style>\n</head>\n<body>\n<main class=\"page\">"
@@ -49,7 +49,7 @@ pub fn to_html(report: &Report) -> String {
     // En-tête : titre, sujet, date.
     let _ = writeln!(
         h,
-        "<header class=\"head\"><p class=\"kicker\">10-4 PCCheck · Rapport · {kind}</p>\
+        "<header class=\"head\"><p class=\"kicker\">PCCheck · Rapport · {kind}</p>\
          <h1>{title}</h1><p class=\"muted\">{name} · {date}</p></header>",
         kind = e(report.subject.kind.label()),
         title = e(&report.title),
@@ -248,7 +248,7 @@ fn footer(h: &mut String, report: &Report, hash: &str) {
     let _ = writeln!(
         h,
         "<footer class=\"foot\">\
-         <p>10-4 PCCheck {version} · schéma {schema} · généré le {date} ({iso})</p>\
+         <p>PCCheck {version} · schéma {schema} · généré le {date} ({iso})</p>\
          <p>Outils tiers : {tools}</p>\
          <p>Empreinte SHA-256 du fichier JSON du rapport : <code class=\"hash\">{hash}</code></p>\
          <p class=\"muted\">Pour vérifier qu'il n'a pas été modifié : <code>sha256sum</code> (Linux) \

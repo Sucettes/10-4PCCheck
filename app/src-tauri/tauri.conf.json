@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "10-4 PCCheck",
+  "productName": "PCCheck",
   "mainBinaryName": "pccheck",
   "version": "0.1.0",
   "identifier": "ca.pccheck.desktop",
@@ -13,7 +13,7 @@
   "app": {
     "windows": [
       {
-        "title": "10-4 PCCheck",
+        "title": "PCCheck",
         "width": 1280,
         "height": 720,
         "minWidth": 800,

@@ -1,4 +1,4 @@
-//! Moteur de collecte de 10-4 PCCheck.
+//! Moteur de collecte de PCCheck.
 //!
 //! Aucune dépendance à l'interface : l'application Tauri et les tests appellent
 //! les mêmes fonctions, et tout ce qui sort d'ici est sérialisable en JSON.

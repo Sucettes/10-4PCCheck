@@ -1,6 +1,6 @@
 [package]
 name = "pccheck-app"
-description = "10-4 PCCheck : application de bureau (Tauri)."
+description = "PCCheck : application de bureau (Tauri)."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

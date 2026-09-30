@@ -1,4 +1,4 @@
-// Gabarit du rapport PDF de 10-4 PCCheck.
+// Gabarit du rapport PDF de PCCheck.
 //
 // Toutes les données viennent du fichier virtuel /data.json, fourni par pdf.rs. Une chaîne lue
 // par json() est une valeur : l'afficher produit du texte littéral, jamais du balisage évalué.
@@ -41,7 +41,7 @@
   r.tools.map(t => t.name + " " + t.version).join(", ")
 }
 
-#set document(title: r.title, author: "10-4 PCCheck")
+#set document(title: r.title, author: "PCCheck")
 #set text(font: "DejaVu Sans", size: 9pt, fill: ink, lang: "fr")
 #set par(leading: 0.55em)
 #set page(
@@ -55,7 +55,7 @@
       column-gutter: 12pt,
       stack(
         spacing: 3pt,
-        "10-4 PCCheck " + r.tool_version + " · schéma " + str(r.schema_version) + " · " + d.date,
+        "PCCheck " + r.tool_version + " · schéma " + str(r.schema_version) + " · " + d.date,
         "Outils tiers : " + tools-text,
         [SHA-256 du fichier JSON : #mono(d.hash)],
       ),
@@ -65,7 +65,7 @@
 )
 
 // ---------- En-tête ----------
-#text(size: 7.5pt, fill: muted, tracking: 0.04em, upper("10-4 PCCheck · Rapport · " + d.subject_kind))
+#text(size: 7.5pt, fill: muted, tracking: 0.04em, upper("PCCheck · Rapport · " + d.subject_kind))
 #v(1pt)
 #text(size: 17pt, weight: "bold", r.title)
 #v(0pt)

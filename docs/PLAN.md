@@ -1,4 +1,4 @@
-# 10-4 PCCheck · Plan de projet
+# PCCheck · Plan de projet
 
 Document de référence pour reprendre le projet à tout moment. Il contient les décisions prises, l'architecture visée, ce qui reste à faire et ce qui doit encore être validé.
 
@@ -103,9 +103,9 @@ Raison du moteur séparé : il est testable sans UI, et le même JSON alimente l
 
 ### Disposition de la clé USB
 ```
-/10-4PCCheck/
-  windows/     10-4-pccheck.exe, runtime WebView2 fixe, smartctl.exe, photorec_win.exe, adb.exe
-  linux/       10-4-pccheck.AppImage, smartctl, photorec_static, adb
+/PCCheck/
+  windows/     PCCheck.exe, runtime WebView2 fixe, smartctl.exe, photorec_win.exe, adb.exe
+  linux/       PCCheck.AppImage, smartctl, photorec_static, adb
   rapports/    Rapports générés (JSON + HTML + PDF)
   recup/       Destination par défaut de PhotoRec
 ```
@@ -264,9 +264,9 @@ Critère de sortie : les quatre points de lancement passent. Sinon, décision El
 - Réseau de la session cloud de Claude : l'étape finale de linuxdeploy échoue derrière le proxy ; `tools/build-appimage.sh` accepte un runtime AppImage fourni à la main (voir l'en-tête du script). Aucun impact en CI.
 
 #### Test final sur le PC du propriétaire (environ 10 minutes)
-1. Récupérer les fichiers produits par la CI (artefacts `10-4-pccheck-windows` et `10-4-pccheck-linux`) et les copier sur la clé :
-   `windows/10-4-pccheck.exe`, `windows/tools/smartctl.exe`, `linux/10-4-pccheck.AppImage`.
-2. Brancher la clé sur le PC Windows et lancer `windows/10-4-pccheck.exe`.
+1. Récupérer les fichiers produits par la CI (artefacts `pccheck-windows` et `pccheck-linux`) et les copier sur la clé :
+   `windows/PCCheck.exe`, `windows/tools/smartctl.exe`, `linux/PCCheck.AppImage`.
+2. Brancher la clé sur le PC Windows et lancer `windows/PCCheck.exe`.
 3. SmartScreen : « Informations complémentaires », puis « Exécuter quand même ». Noter si Defender bloque.
 4. Invite UAC : accepter. Vérifier « Mode administrateur » en bas à gauche.
 5. Vérifier que le Samsung 860 EVO apparaît avec température, heures (environ 3 864 h) et état « Bon ».
@@ -345,13 +345,13 @@ Claude vérifie tout ce qui peut l'être sans matériel réel. Le propriétaire 
 
 ## 8. Questions ouvertes
 
-1. React + TypeScript pour l'interface : à confirmer.
+1. React + TypeScript pour l'interface : retenu de fait (toute l'interface est écrite ainsi).
 2. Distributions Linux ciblées : à confirmer (défaut : Ubuntu LTS, Fedora, Linux Mint).
-3. Langue du rapport : français seulement, ou aussi anglais ?
-4. Seuils du verdict (section 4) : à valider.
-5. Test de charge GPU : utile ou non ?
-6. Nom final de l'outil et de l'exécutable.
-7. Distribution Linux du live USB (phase 6).
+3. ~~Langue du rapport~~ : **décidé (2026-09-29) : français seulement.**
+4. Seuils du verdict (section 4) : à valider sur de vrais appareils.
+5. ~~Test de charge GPU~~ : **décidé : oui** (voir phase 3).
+6. ~~Nom final~~ : **décidé : PCCheck** (exécutable `PCCheck.exe`, AppImage `PCCheck.AppImage`, dossier `PCCheck/` sur la clé). Le dépôt garde son nom `10-4PCCheck`.
+7. Distribution Linux du live USB (phase 6) : deux propositions soumises au propriétaire (Ubuntu LTS, SystemRescue).
 
 ---
 

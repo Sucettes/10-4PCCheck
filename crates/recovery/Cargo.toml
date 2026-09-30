@@ -1,6 +1,6 @@
 [package]
 name = "pccheck-recovery"
-description = "10-4 PCCheck : récupération de fichiers supprimés avec PhotoRec."
+description = "PCCheck : récupération de fichiers supprimés avec PhotoRec."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

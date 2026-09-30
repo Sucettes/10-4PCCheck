@@ -1,6 +1,6 @@
 [package]
 name = "pccheck-core"
-description = "Moteur de collecte de 10-4 PCCheck : appels smartctl et analyse des résultats."
+description = "Moteur de collecte de PCCheck : appels smartctl et analyse des résultats."
 version.workspace = true
 edition.workspace = true
 license.workspace = true

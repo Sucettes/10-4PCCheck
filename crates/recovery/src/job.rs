@@ -295,7 +295,7 @@ pub(crate) fn explain_end(
         // Code 1 avant toute écriture : ouverture du disque refusée (phmain.c, « Unable to
         // open file or device »), le plus souvent faute de droits administrateur.
         return Some(format!(
-            "PhotoRec s'est arrêté (code {code}) sans rien trouver : vérifie que 10-4 PCCheck \
+            "PhotoRec s'est arrêté (code {code}) sans rien trouver : vérifie que PCCheck \
              tourne en administrateur et que le disque source est toujours branché"
         ));
     }

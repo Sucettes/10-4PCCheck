@@ -1,8 +1,8 @@
 # Assemble le dossier de la clé USB dans dist-usb/ (à copier tel quel à la racine de la clé,
-# ou dans un dossier 10-4PCCheck/ de la clé) :
+# ou dans un dossier PCCheck/ de la clé) :
 #   dist-usb/
-#     windows/   10-4-pccheck.exe + tools/ (smartctl, adb, testdisk/photorec)
-#     linux/     10-4-pccheck.AppImage + tools/ (si construits)
+#     windows/   PCCheck.exe + tools/ (smartctl, adb, testdisk/photorec)
+#     linux/     PCCheck.AppImage + tools/ (si construits)
 #     rapports/  rapports générés (JSON, HTML, PDF)
 #     recup/     destination proposée par défaut pour PhotoRec
 #     LISEZMOI.txt
@@ -26,10 +26,10 @@ if (-not (Test-Path $exe)) { throw "Exe absent : lancer avec -Build" }
 
 New-Item -ItemType Directory -Force (Join-Path $win "tools"), (Join-Path $usb "rapports"), (Join-Path $usb "recup") | Out-Null
 try {
-    Copy-Item $exe (Join-Path $win "10-4-pccheck.exe") -Force -ErrorAction Stop
+    Copy-Item $exe (Join-Path $win "PCCheck.exe") -Force -ErrorAction Stop
 } catch {
     # Application ouverte : l'exécutable est verrouillé. Les outils sont quand même copiés.
-    Write-Warning "10-4-pccheck.exe en cours d'utilisation : non remplacé (ferme l'application et relance ce script)"
+    Write-Warning "PCCheck.exe en cours d'utilisation : non remplacé (ferme l'application et relance ce script)"
 }
 
 $tools = Join-Path $root "tools\windows"
@@ -50,7 +50,7 @@ if (Test-Path $sleuthkit) {
     Write-Warning "The Sleuth Kit absent : lancer tools\fetch-tools-windows.ps1"
 }
 
-$appimage = Join-Path $root "dist-usb\linux\10-4-pccheck.AppImage"
+$appimage = Join-Path $root "dist-usb\linux\PCCheck.AppImage"
 if (-not (Test-Path $appimage)) { Write-Warning "AppImage Linux absente (voir tools/build-appimage.sh ou la CI)" }
 
 Copy-Item (Join-Path $root "docs\LISEZMOI-CLE.txt") (Join-Path $usb "LISEZMOI.txt") -Force

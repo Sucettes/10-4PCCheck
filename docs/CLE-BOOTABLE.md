@@ -24,7 +24,7 @@ Taille de clé conseillée : 16 Go minimum (Ubuntu ~6 Go, MemTest86+ ~20 Mo, out
 3. La clé réapparaît avec une partition `Ventoy` (exFAT). Copie à sa racine :
    - l'ISO de MemTest86+ ;
    - l'ISO d'Ubuntu ;
-   - le contenu de `dist-usb/` dans un dossier `10-4PCCheck/` (voir `tools/assemble-usb.ps1`).
+   - le contenu de `dist-usb/` dans un dossier `PCCheck/` (voir `tools/assemble-usb.ps1`).
 4. Optionnel : `ventoy/ventoy.json` pour renommer les entrées du menu (« Test RAM complet », « Linux de secours »).
 
 ## Démarrer sur la clé chez un vendeur
@@ -33,7 +33,7 @@ Taille de clé conseillée : 16 Go minimum (Ubuntu ~6 Go, MemTest86+ ~20 Mo, out
 2. **Secure Boot actif** : au premier démarrage sur chaque machine, Ventoy affiche un écran bleu « Verification failed ». Choisis *Enroll key from disk*, puis le fichier `ENROLL_THIS_KEY_IN_MOKMANAGER.cer` de la partition VTOYEFI, *Continue*, *Yes*, *Reboot*. C'est une étape de 1 minute, à faire devant le vendeur ; elle ne modifie pas Windows.
 3. Menu Ventoy :
    - **MemTest86+** : laisse tourner au moins un passage complet (15 à 60 min selon la RAM). Une seule erreur = barrette défectueuse.
-   - **Ubuntu** : « Essayer Ubuntu », puis ouvre le dossier `10-4PCCheck/linux/` de la partition Ventoy et lance l'AppImage avec `sudo` depuis un terminal pour lire les disques.
+   - **Ubuntu** : « Essayer Ubuntu », puis ouvre le dossier `PCCheck/linux/` de la partition Ventoy et lance l'AppImage avec `sudo` depuis un terminal pour lire les disques.
 
 ## Limites connues
 
