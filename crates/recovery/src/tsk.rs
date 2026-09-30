@@ -27,6 +27,10 @@ const RECOVER: &str = "tsk_recover.exe";
 #[cfg(not(windows))]
 const RECOVER: &str = "tsk_recover";
 #[cfg(windows)]
+const ICAT: &str = "icat.exe";
+#[cfg(not(windows))]
+const ICAT: &str = "icat";
+#[cfg(windows)]
 const FLS: &str = "fls.exe";
 #[cfg(not(windows))]
 const FLS: &str = "fls";
@@ -181,23 +185,7 @@ impl TskJob {
     /// Lance la récupération des fichiers supprimés du volume `mount` (racine, ex. `E:\`) vers
     /// `dest`, qui doit être sur un autre disque physique.
     pub fn start(tsk_dir: &Path, mount: &Path, dest: &Path) -> Result<TskJob, RecoveryError> {
-        let device = volume_device(mount).ok_or_else(|| RecoveryError::InvalidDestination {
-            path: mount.to_path_buf(),
-            reason: "volume introuvable".into(),
-        })?;
-        let source_disk = list_volumes()
-            .into_iter()
-            .find(|v| v.path == mount)
-            .and_then(|v| v.disk)
-            .ok_or_else(|| RecoveryError::DestinationDiskUnknown {
-                path: mount.to_path_buf(),
-                reason: "disque physique du volume source inconnu".into(),
-            })?;
-        validate_destination(&source_disk, dest)?;
-        std::fs::create_dir_all(dest).map_err(|e| RecoveryError::CreateDestination {
-            path: dest.to_path_buf(),
-            reason: e.to_string(),
-        })?;
+        let device = prepare(mount, dest)?;
         Self::spawn(&tsk_dir.join(RECOVER), &[device], dest)
     }
 
@@ -273,6 +261,130 @@ impl Drop for TskJob {
     }
 }
 
+/// Vérifie que `dest` est sur un autre disque que le volume `mount`, crée `dest` et rend le chemin
+/// système du volume pour The Sleuth Kit.
+fn prepare(mount: &Path, dest: &Path) -> Result<String, RecoveryError> {
+    let device = volume_device(mount).ok_or_else(|| RecoveryError::InvalidDestination {
+        path: mount.to_path_buf(),
+        reason: "volume introuvable".into(),
+    })?;
+    let source_disk = list_volumes()
+        .into_iter()
+        .find(|v| v.path == mount)
+        .and_then(|v| v.disk)
+        .ok_or_else(|| RecoveryError::DestinationDiskUnknown {
+            path: mount.to_path_buf(),
+            reason: "disque physique du volume source inconnu".into(),
+        })?;
+    validate_destination(&source_disk, dest)?;
+    std::fs::create_dir_all(dest).map_err(|e| RecoveryError::CreateDestination {
+        path: dest.to_path_buf(),
+        reason: e.to_string(),
+    })?;
+    Ok(device)
+}
+
+/// Fichier choisi dans la liste de `fls` pour une récupération ciblée.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]
+pub struct SelectedFile {
+    pub inode: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SelectionResult {
+    pub recovered: u64,
+    pub bytes: u64,
+    /// Chemin d'origine et raison, pour chaque fichier non récupéré.
+    pub failed: Vec<(String, String)>,
+}
+
+/// Chemin relatif sûr à partir d'un chemin lu sur le disque analysé : sans `..`, sans racine ni
+/// lettre de lecteur, sans caractère interdit sous Windows. Un nom venu du disque est une donnée
+/// non fiable : sans ce nettoyage, `../../Windows/x` écrirait hors du dossier de destination.
+pub fn safe_relative_path(original: &str) -> PathBuf {
+    let mut out = PathBuf::new();
+    for part in original.split(['/', '\\']) {
+        let part = part.trim();
+        if part.is_empty() || part == "." || part == ".." {
+            continue;
+        }
+        let clean: String = part
+            .chars()
+            .map(|c| match c {
+                '<' | '>' | ':' | '"' | '|' | '?' | '*' => '_',
+                c if c.is_control() => '_',
+                c => c,
+            })
+            .collect();
+        // Noms finissant par un point ou une espace : refusés par Windows.
+        let clean = clean.trim_end_matches(['.', ' ']).to_string();
+        if !clean.is_empty() {
+            out.push(clean);
+        }
+    }
+    if out.as_os_str().is_empty() {
+        out.push("sans-nom");
+    }
+    out
+}
+
+/// Récupère seulement les fichiers choisis, avec `icat -r`, à leur chemin d'origine sous `dest`.
+/// Un fichier en échec n'arrête pas les autres.
+pub fn recover_selected(
+    tsk_dir: &Path,
+    mount: &Path,
+    files: &[SelectedFile],
+    dest: &Path,
+) -> Result<SelectionResult, RecoveryError> {
+    let device = prepare(mount, dest)?;
+    Ok(extract_files(&tsk_dir.join(ICAT), &device, files, dest))
+}
+
+/// Extraction brute (tests : image disque au lieu d'un volume).
+pub fn extract_files(
+    icat: &Path,
+    source: &str,
+    files: &[SelectedFile],
+    dest: &Path,
+) -> SelectionResult {
+    let mut result = SelectionResult {
+        recovered: 0,
+        bytes: 0,
+        failed: Vec::new(),
+    };
+    for f in files {
+        let target = dest.join(safe_relative_path(&f.path));
+        let outcome = (|| -> Result<u64, String> {
+            if let Some(parent) = target.parent() {
+                std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
+            let file = std::fs::File::create(&target).map_err(|e| e.to_string())?;
+            let mut cmd = Command::new(icat);
+            cmd.args(["-r", source, &f.inode])
+                .stdin(Stdio::null())
+                .stdout(file)
+                .stderr(Stdio::null());
+            hide_console(&mut cmd);
+            let status = cmd.status().map_err(|e| e.to_string())?;
+            let size = std::fs::metadata(&target).map(|m| m.len()).unwrap_or(0);
+            if !status.success() && size == 0 {
+                let _ = std::fs::remove_file(&target);
+                return Err("contenu illisible (données déjà écrasées)".into());
+            }
+            Ok(size)
+        })();
+        match outcome {
+            Ok(size) => {
+                result.recovered += 1;
+                result.bytes += size;
+            }
+            Err(reason) => result.failed.push((f.path.clone(), reason)),
+        }
+    }
+    result
+}
+
 /// Fichiers et octets sous `dir`, récursivement.
 pub fn count_files(dir: &Path) -> (u64, u64) {
     let mut files = 0;
@@ -322,6 +434,27 @@ v/v 523251:\t$MBR\t0000-00-00 00:00:00 (UTC)\t\t\t\t512\t0\t0\n";
     fn recovered_count_is_read() {
         assert_eq!(parse_recovered_count("Files Recovered: 2\n"), Some(2));
         assert_eq!(parse_recovered_count("rien"), None);
+    }
+
+    #[test]
+    fn unsafe_paths_stay_inside_destination() {
+        assert_eq!(
+            safe_relative_path("Photos/IMG_1.JPG"),
+            PathBuf::from("Photos").join("IMG_1.JPG")
+        );
+        assert_eq!(
+            safe_relative_path("../../Windows/x.dll"),
+            PathBuf::from("Windows").join("x.dll")
+        );
+        assert_eq!(
+            safe_relative_path("C:\\a:b?.txt"),
+            PathBuf::from("C_").join("a_b_.txt")
+        );
+        assert_eq!(safe_relative_path("/.."), PathBuf::from("sans-nom"));
+        assert_eq!(
+            safe_relative_path("dossier. /nom "),
+            PathBuf::from("dossier").join("nom")
+        );
     }
 
     #[cfg(windows)]

@@ -3,7 +3,15 @@ import { invoke } from "@tauri-apps/api/core";
 import { formatBytes } from "./format";
 import { cancelJob, isOk, useJob } from "./jobs";
 import { errorMessage } from "./load";
-import type { DeletedList, RecoveryStatus, TskProgress } from "./moreTypes";
+import type { DeletedFile, DeletedList, RecoveryStatus, TskProgress } from "./moreTypes";
+
+interface SelectionResult {
+  recovered: number;
+  bytes: number;
+  failed: [string, string][];
+}
+
+const key = (f: DeletedFile) => `${f.inode}|${f.path}`;
 
 const JOB = "tsk";
 const SHOWN = 400;
@@ -31,11 +39,18 @@ export function TskPanel({ status }: { status: RecoveryStatus }) {
   const [dest, setDest] = useState(() => join(status.default_destination, `${stamp()}_noms`));
   const [startError, setStartError] = useState<string | null>(null);
   const [job, setJob] = useJob<TskProgress, TskProgress>(JOB);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [picking, setPicking] = useState(false);
+  const [picked, setPicked] = useState<SelectionResult | null>(null);
 
   const scan = () => {
     setList({ state: "loading" });
     invoke<DeletedList>("tsk_list", { volume })
-      .then((value) => setList({ state: "ok", value }))
+      .then((value) => {
+        setSelected(new Set());
+        setPicked(null);
+        setList({ state: "ok", value });
+      })
       .catch((e: unknown) => setList({ state: "error", message: errorMessage(e) }));
   };
 
@@ -55,6 +70,36 @@ export function TskPanel({ status }: { status: RecoveryStatus }) {
     });
   };
   const p = job.progress ?? (isOk(job.result) ? job.result.ok : null);
+
+  const shown = files.slice(0, SHOWN);
+  const allShownSelected = shown.length > 0 && shown.every((f) => selected.has(key(f)));
+  const toggle = (f: DeletedFile) =>
+    setSelected((s) => {
+      const n = new Set(s);
+      if (n.has(key(f))) n.delete(key(f));
+      else n.add(key(f));
+      return n;
+    });
+  const toggleShown = () =>
+    setSelected((s) => {
+      const n = new Set(s);
+      for (const f of shown) {
+        if (allShownSelected) n.delete(key(f));
+        else n.add(key(f));
+      }
+      return n;
+    });
+  const recoverSelected = () => {
+    if (list.state !== "ok") return;
+    const chosen = list.value.files.filter((f) => selected.has(key(f))).map((f) => ({ inode: f.inode, path: f.path }));
+    setPicking(true);
+    setPicked(null);
+    setStartError(null);
+    invoke<SelectionResult>("tsk_recover_selected", { volume, files: chosen, destination: dest })
+      .then(setPicked)
+      .catch((e: unknown) => setStartError(errorMessage(e)))
+      .finally(() => setPicking(false));
+  };
 
   if (!status.tsk) {
     return (
@@ -116,6 +161,9 @@ export function TskPanel({ status }: { status: RecoveryStatus }) {
               <table className="attr-table">
                 <thead>
                   <tr>
+                    <th scope="col" className="check-col">
+                      <input type="checkbox" checked={allShownSelected} onChange={toggleShown} aria-label="Tout cocher" />
+                    </th>
                     <th scope="col">Chemin d'origine</th>
                     <th scope="col">Modifié</th>
                     <th scope="col" className="num">
@@ -124,8 +172,11 @@ export function TskPanel({ status }: { status: RecoveryStatus }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {files.slice(0, SHOWN).map((f) => (
-                    <tr key={f.inode + f.path}>
+                  {shown.map((f) => (
+                    <tr key={key(f)} className={selected.has(key(f)) ? "row-selected" : undefined} onClick={() => toggle(f)}>
+                      <td className="check-col">
+                        <input type="checkbox" checked={selected.has(key(f))} onChange={() => toggle(f)} onClick={(e) => e.stopPropagation()} aria-label={`Choisir ${f.path}`} />
+                      </td>
                       <td className="mono">{f.path}</td>
                       <td className="muted-cell">{f.modified ?? ""}</td>
                       <td className="num">{f.size === null ? "" : formatBytes(f.size)}</td>
@@ -141,12 +192,30 @@ export function TskPanel({ status }: { status: RecoveryStatus }) {
               <input type="text" value={dest} onChange={(e) => setDest(e.target.value)} spellCheck={false} />
             </label>
             {!job.running && (
-              <button type="button" className="btn btn-primary" onClick={start} disabled={list.value.total === 0}>
-                Récupérer tous les fichiers supprimés
-              </button>
+              <>
+                <button type="button" className="btn btn-primary" onClick={recoverSelected} disabled={selected.size === 0 || picking}>
+                  {picking ? "Copie…" : `Récupérer la sélection (${selected.size})`}
+                </button>
+                <button type="button" className="btn" onClick={start} disabled={list.value.total === 0 || picking}>
+                  Tout récupérer
+                </button>
+              </>
             )}
           </div>
           {startError && <p className="text-bad small">{startError}</p>}
+          {picked && (
+            <div className="test-progress-head" role="status">
+              <span>
+                {picked.recovered} fichier(s) récupéré(s), {formatBytes(picked.bytes)}
+                {picked.failed.length > 0 && (
+                  <span className="text-bad"> · {picked.failed.length} illisible(s) : {picked.failed.slice(0, 3).map((f) => f[0]).join(", ")}</span>
+                )}
+              </span>
+              <button type="button" className="btn" onClick={() => void invoke("open_folder", { path: dest })}>
+                Ouvrir le dossier
+              </button>
+            </div>
+          )}
           {p && (
             <div className="test-progress" role="status">
               <div className="test-progress-head">

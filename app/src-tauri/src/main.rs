@@ -389,6 +389,7 @@ fn main() {
             recover::open_folder,
             recover::tsk_list,
             recover::start_tsk,
+            recover::tsk_recover_selected,
             terminal::terminal_open,
             terminal::terminal_write,
             terminal::terminal_resize,

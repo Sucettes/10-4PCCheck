@@ -11,6 +11,7 @@
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
+use pccheck_recovery::tsk::{extract_files, SelectedFile};
 use pccheck_recovery::{list_deleted, locate_tsk, TskJob};
 
 #[test]
@@ -54,4 +55,34 @@ fn tsk_lists_and_recovers_deleted_files_with_names() {
         8455
     );
     let _ = std::fs::remove_dir_all(&dest);
+
+    // Récupération ciblée (icat) : un seul fichier, et un chemin piégé qui doit rester dans dest.
+    let picked = image.with_file_name(format!("choix-{}", std::process::id()));
+    std::fs::create_dir_all(&picked).unwrap();
+    let files = [
+        SelectedFile {
+            inode: "4".into(),
+            path: "Photos/_HOTO.PNG".into(),
+        },
+        SelectedFile {
+            inode: "5".into(),
+            path: "../../évasion/_APPORT.PDF".into(),
+        },
+    ];
+    let r = extract_files(
+        &tsk.join("icat.exe"),
+        &image.display().to_string(),
+        &files,
+        &picked,
+    );
+    println!("{r:?}");
+    assert_eq!(r.recovered, 2);
+    assert_eq!(
+        std::fs::metadata(picked.join("Photos").join("_HOTO.PNG"))
+            .unwrap()
+            .len(),
+        8455
+    );
+    assert!(picked.join("évasion").join("_APPORT.PDF").is_file());
+    let _ = std::fs::remove_dir_all(&picked);
 }

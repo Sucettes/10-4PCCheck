@@ -5,6 +5,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 
+use pccheck_recovery::tsk::{recover_selected, SelectedFile, SelectionResult};
 use pccheck_recovery::{
     disk_from_smartctl_name, list_deleted, list_found, list_volumes, locate_console_tool,
     locate_photorec, locate_tsk, trim_warning, volume_device, ConsoleTool, DeletedList, FileFamily,
@@ -184,4 +185,25 @@ pub fn start_tsk(
     })
     .map_err(CommandError::Internal)?;
     Ok("tsk".into())
+}
+
+/// Récupère seulement les fichiers cochés (icat), à leur chemin d'origine sous `destination`.
+#[tauri::command]
+pub async fn tsk_recover_selected(
+    volume: String,
+    files: Vec<SelectedFile>,
+    destination: String,
+    app: AppHandle,
+) -> Result<SelectionResult, CommandError> {
+    crate::blocking(move || {
+        let tsk = locate_tsk(&tool_dirs(&app)).map_err(tool_err)?;
+        recover_selected(
+            &tsk,
+            &PathBuf::from(volume),
+            &files,
+            &PathBuf::from(destination),
+        )
+        .map_err(tool_err)
+    })
+    .await?
 }
