@@ -164,19 +164,38 @@ const SUMMARY_MAX_NAMES: usize = 4;
 /// qui laisserait croire que tout a été vérifié.
 pub fn compute_verdict(sections: &[Section]) -> Verdict {
     let mut ok = 0u32;
-    let mut warn_names: Vec<&str> = Vec::new();
-    let mut bad_names: Vec<&str> = Vec::new();
+    let mut warn_names: Vec<String> = Vec::new();
+    let mut bad_names: Vec<String> = Vec::new();
     let (mut warn, mut bad) = (0u32, 0u32);
-    for item in sections.iter().flat_map(|s| s.items.iter()) {
+    // Libellé présent dans plusieurs sections (« Secteurs en attente » de deux disques) : le
+    // résumé précise la section, sinon on ne saurait pas quel disque est en cause.
+    let ambiguous = |label: &str| {
+        sections
+            .iter()
+            .filter(|s| s.items.iter().any(|i| i.label.trim() == label.trim()))
+            .count()
+            > 1
+    };
+    let name = |section: &Section, label: &str| {
+        if ambiguous(label) {
+            format!("{} ({})", label.trim(), section.title)
+        } else {
+            label.trim().to_string()
+        }
+    };
+    for (section, item) in sections
+        .iter()
+        .flat_map(|s| s.items.iter().map(move |i| (s, i)))
+    {
         match item.level {
             Level::Ok => ok += 1,
             Level::Warn => {
                 warn += 1;
-                push_unique(&mut warn_names, &item.label);
+                push_unique(&mut warn_names, name(section, &item.label));
             }
             Level::Bad => {
                 bad += 1;
-                push_unique(&mut bad_names, &item.label);
+                push_unique(&mut bad_names, name(section, &item.label));
             }
             Level::Info | Level::Neutral => {}
         }
@@ -204,15 +223,14 @@ pub fn compute_verdict(sections: &[Section]) -> Verdict {
     }
 }
 
-fn push_unique<'a>(names: &mut Vec<&'a str>, label: &'a str) {
-    let label = label.trim();
+fn push_unique(names: &mut Vec<String>, label: String) {
     if !label.is_empty() && !names.contains(&label) {
         names.push(label);
     }
 }
 
 /// Ex. « Aucun problème critique. À surveiller : santé de la batterie et clavier. »
-fn summary_text(bad: &[&str], warn: &[&str]) -> String {
+fn summary_text(bad: &[String], warn: &[String]) -> String {
     let mut out = match bad.len() {
         0 => "Aucun problème critique.".to_string(),
         1 => format!("Problème critique : {}.", enumerate(bad)),
@@ -227,11 +245,11 @@ fn summary_text(bad: &[&str], warn: &[&str]) -> String {
 }
 
 /// « a », « a et b », « a, b et c », « a, b, c, d et 2 autres ».
-fn enumerate(names: &[&str]) -> String {
+fn enumerate<S: AsRef<str>>(names: &[S]) -> String {
     let mut parts: Vec<String> = names
         .iter()
         .take(SUMMARY_MAX_NAMES)
-        .map(|n| lower_first(n.trim_end_matches('.')))
+        .map(|n| lower_first(n.as_ref().trim_end_matches('.')))
         .collect();
     let rest = names.len().saturating_sub(SUMMARY_MAX_NAMES);
     if rest > 0 {
@@ -381,5 +399,20 @@ mod tests {
         let names = ["A1", "Bb", "Cc", "Dd", "Ee", "Ff"];
         assert_eq!(enumerate(&names), "A1, bb, cc, dd et 2 autres");
         assert_eq!(enumerate(&names[..1]), "A1");
+    }
+
+    #[test]
+    fn label_shared_by_two_disks_names_the_disk() {
+        let mut a = Section::new("disque-a", "Samsung 860 EVO");
+        a.items
+            .push(Item::new("Secteurs en attente", "0", Level::Ok));
+        let mut b = Section::new("disque-b", "WD Blue");
+        b.items
+            .push(Item::new("Secteurs en attente", "8", Level::Bad));
+        let v = compute_verdict(&[a, b]);
+        assert_eq!(
+            v.summary,
+            "Problème critique : secteurs en attente (WD Blue)."
+        );
     }
 }

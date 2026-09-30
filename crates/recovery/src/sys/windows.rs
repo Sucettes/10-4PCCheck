@@ -12,9 +12,9 @@ use windows_sys::Win32::Foundation::{
     CloseHandle, ERROR_ELEVATION_REQUIRED, HANDLE, INVALID_HANDLE_VALUE, WAIT_FAILED, WAIT_OBJECT_0,
 };
 use windows_sys::Win32::Storage::FileSystem::{
-    BusTypeUsb, CreateFileW, GetDiskFreeSpaceExW, GetDriveTypeW, GetLogicalDrives,
-    GetVolumeInformationW, GetVolumeNameForVolumeMountPointW, GetVolumePathNameW, FILE_SHARE_READ,
-    FILE_SHARE_WRITE, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, OPEN_EXISTING,
+    BusTypeFileBackedVirtual, BusTypeUsb, CreateFileW, GetDiskFreeSpaceExW, GetDriveTypeW,
+    GetLogicalDrives, GetVolumeInformationW, GetVolumeNameForVolumeMountPointW, GetVolumePathNameW,
+    FILE_SHARE_READ, FILE_SHARE_WRITE, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS, OPEN_EXISTING,
 };
 use windows_sys::Win32::System::Ioctl::{
     PropertyStandardQuery, StorageDeviceProperty, DISK_EXTENT, IOCTL_STORAGE_GET_DEVICE_NUMBER,
@@ -165,6 +165,13 @@ pub(crate) fn locate_path(path: &Path) -> DestinationLocation {
     let is_unc = text.starts_with(r"\\?\UNC\")
         || (text.starts_with(r"\\") && !text.starts_with(r"\\?\") && !text.starts_with(r"\\.\"));
     if is_unc {
+        // Un partage de cette machine (`\\localhost\c$`, `\\NOM-DU-PC\...`) est un disque local
+        // déguisé : il pourrait être la source.
+        if unc_is_local(&text) {
+            return DestinationLocation::Unknown {
+                reason: "partage réseau de cette machine : choisis plutôt un chemin local".into(),
+            };
+        }
         return DestinationLocation::Remote;
     }
     let Some(root) = volume_path_name(path) else {
@@ -175,12 +182,44 @@ pub(crate) fn locate_path(path: &Path) -> DestinationLocation {
     }
     let device = volume_device(&root);
     match volume_disks(&device) {
+        // Disque virtuel (VHD) : son fichier est stocké sur un autre disque, peut-être la source.
+        Ok(disks) if disks.iter().any(is_file_backed) => DestinationLocation::Unknown {
+            reason: "disque virtuel (VHD) : son fichier peut se trouver sur la source".into(),
+        },
         Ok(disks) if !disks.is_empty() => DestinationLocation::Disks { disks },
         Ok(_) => DestinationLocation::Unknown {
             reason: format!("aucun disque pour {device}"),
         },
         Err(e) => unknown(&format!("disque de {device} illisible"), &e),
     }
+}
+
+/// `\\hôte\...` qui désigne cette machine : localhost, adresse de bouclage ou nom de l'ordinateur.
+fn unc_is_local(text: &str) -> bool {
+    let rest = text
+        .strip_prefix(r"\\?\UNC\")
+        .or_else(|| text.strip_prefix(r"\\"))
+        .unwrap_or(text);
+    let host = rest.split('\\').next().unwrap_or("").to_ascii_lowercase();
+    let computer = std::env::var("COMPUTERNAME")
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    host == "localhost"
+        || host.starts_with("127.")
+        || host == "::1"
+        || host == "[::1]"
+        || (!computer.is_empty() && (host == computer || host.starts_with(&format!("{computer}."))))
+}
+
+/// Disque physique rendu par un fichier (VHD, VHDX) plutôt que par du matériel.
+fn is_file_backed(disk: &DiskId) -> bool {
+    let DiskId::PhysicalDrive(n) = disk else {
+        return false;
+    };
+    Handle::open_query(&format!(r"\\.\PhysicalDrive{n}"))
+        .ok()
+        .and_then(|h| storage_descriptor(&h))
+        .is_some_and(|(bus, _)| bus == BusTypeFileBackedVirtual)
 }
 
 fn unknown(what: &str, e: &io::Error) -> DestinationLocation {
@@ -280,6 +319,11 @@ fn disk_extents(handle: &Handle) -> io::Result<Vec<DiskId>> {
 
 /// USB ou support amovible, d'après le descripteur de stockage.
 fn is_usb_or_removable(handle: &Handle) -> bool {
+    storage_descriptor(handle).is_some_and(|(bus, removable)| bus == BusTypeUsb || removable)
+}
+
+/// Type de bus et support amovible, lus dans le descripteur de stockage.
+fn storage_descriptor(handle: &Handle) -> Option<(i32, bool)> {
     let query = STORAGE_PROPERTY_QUERY {
         PropertyId: StorageDeviceProperty,
         QueryType: PropertyStandardQuery,
@@ -302,7 +346,7 @@ fn is_usb_or_removable(handle: &Handle) -> bool {
         )
         .is_err()
     {
-        return false;
+        return None;
     }
     // Lecture champ par champ : `RemovableMedia` est un `bool` Rust, et relire tout le
     // descripteur d'un coup serait un comportement indéfini si le pilote y mettait autre
@@ -321,7 +365,7 @@ fn is_usb_or_removable(handle: &Handle) -> bool {
             ),
         )
     };
-    bus == BusTypeUsb || removable
+    Some((bus, removable))
 }
 
 /// Poignée de périphérique ouverte sans droit de lecture ni d'écriture : suffisant pour les
