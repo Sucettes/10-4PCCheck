@@ -13,7 +13,7 @@ thiserror.workspace = true
 # Date locale avec fuseau (RFC 3339) ; `clock` lit le fuseau du système.
 chrono = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
 # Empreinte SHA-256 du JSON du rapport.
-sha2 = "0.10"
+sha2 = "0.11"
 # PDF : compilateur Typst embarqué (décision du plan, section 4). Mêmes versions mineures
 # pour les deux crates : typst-pdf dépend de typst-library à la même version.
 typst = "0.15.1"
