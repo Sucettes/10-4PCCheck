@@ -280,3 +280,23 @@ export const nvmeHints = {
     ],
   },
 } satisfies Record<string, HintText>;
+
+export const speedHint: HintText = {
+  title: "Test de vitesse",
+  body: [
+    "Lecture : 256 Mo lus au début, au milieu et à la fin du disque. Sur un disque dur, la fin est normalement environ deux fois plus lente que le début.",
+    "Temps d'accès : 100 lectures à des endroits pris au hasard. C'est la lenteur ressentie quand on ouvre beaucoup de petits fichiers (Windows, programmes, photos) ; c'est souvent la première chose qui se dégrade sur un vieux disque dur.",
+    "Écriture : un fichier neuf de 1 Go est écrit dans l'espace libre puis supprimé. Aucun fichier existant n'est touché. Un fichier supprimé encore récupérable peut en revanche être écrasé : ne lance pas ce test sur un disque dont tu veux récupérer des fichiers.",
+    "Chaque valeur est comparée aux repères de son type de disque : 150 Mo/s est excellent pour un disque dur et très faible pour un SSD NVMe.",
+  ],
+};
+
+export const ageHint: HintText = {
+  title: "Âge et usure",
+  body: [
+    "Heures d'utilisation : comptées par le disque lui-même. Pour un disque dur : moins de 20 000 h peu utilisé, 20 000 à 40 000 h usé, plus de 40 000 h fin de vie probable (statistiques Backblaze sur des centaines de milliers de disques).",
+    "Sur un SSD, les heures comptent peu : c'est la vie restante (usure des cellules) qui fait foi.",
+    "Âge réel : un disque n'enregistre presque jamais sa date de fabrication. L'année de sortie du modèle donne un âge maximal ; l'année imprimée sur l'étiquette donne l'âge exact.",
+    "Heures par jour : 24 h sur 24 pendant 10 ans n'use pas comme 2 h par jour.",
+  ],
+};

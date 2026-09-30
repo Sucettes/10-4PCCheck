@@ -190,3 +190,46 @@ export interface CapacityResult {
   cancelled: boolean;
   verdict: { kind: "genuine" } | { kind: "fake"; real_bytes: number } | { kind: "damaged" } | { kind: "incomplete" };
 }
+
+// ---------- Vitesse et âge des disques (crates/core/src/speed.rs, age.rs) ----------
+
+export interface Band {
+  good: number;
+  acceptable: number;
+  higher_is_better: boolean;
+}
+
+export interface SpeedScale {
+  class: string;
+  read: Band;
+  write: Band;
+  access: Band | null;
+  link_cap_mbps: number | null;
+}
+
+export interface SpeedProgress {
+  step: "read" | "access" | "write";
+  pct: number;
+}
+
+export interface SpeedResult {
+  read: {
+    zones: { position_pct: number; mbps: number }[];
+    access: { avg_ms: number; max_ms: number; samples: number } | null;
+  } | null;
+  read_error: string | null;
+  write: { volume: string; mbps: number; bytes: number } | null;
+  write_skipped: string | null;
+  cancelled: boolean;
+  scale: SpeedScale | null;
+}
+
+export interface DiskAge {
+  power_on_hours: number | null;
+  hours_rating: "young" | "worn" | "end_of_life" | null;
+  label_year: number | null;
+  model_year: number | null;
+  age_years: number | null;
+  age_is_maximum: boolean;
+  hours_per_day: number | null;
+}

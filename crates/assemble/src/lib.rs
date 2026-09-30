@@ -401,7 +401,9 @@ fn speed_items(sp: &SpeedResult) -> Vec<Item> {
                     }
                     None => (mbps_text(first.mbps), Level::Info, format!("{zones}.")),
                 };
-                if let Some(cap) = scale.and_then(|s| s.link_cap_mbps) {
+                // Seulement si le port bride vraiment ce type de disque (jamais un disque dur).
+                if let Some(cap) = scale.and_then(|s| s.link_cap_mbps.filter(|c| *c < s.read.good))
+                {
                     detail.push_str(&format!(
                         " Port SATA ancien : environ {} au maximum, quel que soit le disque.",
                         mbps_text(cap)

@@ -475,3 +475,16 @@ kbd { padding: 0 4px; border: 1px solid var(--border-strong); border-radius: 4px
 .legend-rate, .legend-temp { font-weight: 600; }
 .legend-rate { color: var(--accent); }
 .legend-temp { color: #b45309; }
+
+/* Échelles de vitesse et d'âge (ScaleBar.tsx) */
+.scale-row { display: flex; flex-direction: column; gap: 3px; margin: 6px 0; }
+.scale-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.scale-bar { position: relative; height: 8px; border-radius: 4px; background: #eef0f3; overflow: visible; }
+.scale-zone { position: absolute; top: 0; bottom: 0; }
+.scale-zone:first-child { border-radius: 4px 0 0 4px; }
+.scale-zone:last-of-type { border-radius: 0 4px 4px 0; }
+.zone-weak { background: var(--bad-border); }
+.zone-ok { background: var(--warn-border); }
+.zone-good { background: #a8dcbd; }
+.scale-marker { position: absolute; top: -4px; width: 3px; height: 16px; margin-left: -1px; border-radius: 2px; background: var(--text); box-shadow: 0 0 0 2px #fff; }
+.speed-summary { display: flex; flex-direction: column; gap: 4px; }

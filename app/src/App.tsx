@@ -42,11 +42,18 @@ export default function App() {
   const [disks, setDisks] = useState<Load<DiskEntry[]>>({ state: "loading" });
   const [page, go] = usePage();
 
-  const refresh = (): Promise<void> => {
+  /** Relit les disques ; rend la liste (vide en cas d'erreur) pour l'analyse complète. */
+  const refresh = (): Promise<DiskEntry[]> => {
     setDisks({ state: "loading" });
     return scanDisks()
-      .then((value) => setDisks({ state: "ok", value }))
-      .catch((e: unknown) => setDisks({ state: "error", message: errorMessage(e) }));
+      .then((value) => {
+        setDisks({ state: "ok", value });
+        return value;
+      })
+      .catch((e: unknown) => {
+        setDisks({ state: "error", message: errorMessage(e) });
+        return [];
+      });
   };
 
   useEffect(() => {

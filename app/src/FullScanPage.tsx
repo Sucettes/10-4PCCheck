@@ -13,11 +13,13 @@ import type {
   RamProgress,
   Report,
   ReportItem,
+  SpeedProgress,
   StressResult,
   StressSample,
 } from "./moreTypes";
 import { StressChart } from "./StressChart";
 import { ReportButton } from "./ReportButton";
+import type { DiskEntry } from "./types";
 import { VerdictBanner } from "./Verdict";
 
 /** Vérifications à faire devant le vendeur, enregistrées dans le rapport. */
@@ -32,13 +34,15 @@ const CHECKLIST = [
 ];
 
 const CPU_SECONDS = 300;
+const SPEED_STEPS: Record<SpeedProgress["step"], string> = { read: "lecture", access: "temps d'accès", write: "écriture" };
 const GPU_SECONDS = 120;
 
-type Step = "idle" | "inventory" | "disks" | "ram" | "cpu" | "gpu" | "done";
+type Step = "idle" | "inventory" | "disks" | "speed" | "ram" | "cpu" | "gpu" | "done";
 const STEP_LABELS: Record<Step, string> = {
   idle: "",
   inventory: "Inventaire du matériel",
   disks: "Lecture des disques",
+  speed: "Vitesse des disques",
   ram: "Test de la mémoire (partiel)",
   cpu: "Test de charge du processeur",
   gpu: "Test de charge de la carte graphique",
@@ -67,11 +71,13 @@ let liveSamples: StressSample[] = [];
  */
 interface ScanState {
   step: Step;
+  /** Disque en cours de test de vitesse, et sa position dans la liste. */
+  speedDisk: { device: string; index: number; count: number } | null;
   error: string | null;
   gpuNote: string | null;
   inventory: MachineInventory | null;
 }
-let scan: ScanState = { step: "idle", error: null, gpuNote: null, inventory: null };
+let scan: ScanState = { step: "idle", speedDisk: null, error: null, gpuNote: null, inventory: null };
 const scanListeners = new Set<() => void>();
 function setScan(patch: Partial<ScanState>) {
   scan = { ...scan, ...patch };
@@ -85,13 +91,25 @@ function subscribeScan(l: () => void) {
   };
 }
 
-async function runFullScan(onRefreshDisks: () => Promise<void>) {
+async function runFullScan(onRefreshDisks: () => Promise<DiskEntry[]>) {
   setScan({ error: null, gpuNote: null });
   try {
     setScan({ step: "inventory" });
     setScan({ inventory: await invoke<MachineInventory>("machine_inventory", { refresh: true }) });
     setScan({ step: "disks" });
-    await onRefreshDisks();
+    const disks = (await onRefreshDisks()).flatMap((e) => (e.info && e.info.capacity_bytes !== null ? [e.info] : []));
+    setScan({ step: "speed" });
+    for (const [index, d] of disks.entries()) {
+      setScan({ speedDisk: { device: d.device.name, index, count: disks.length } });
+      // Un disque qui ne se laisse pas tester (droits, contrôleur RAID) n'arrête pas l'analyse.
+      try {
+        await invoke("start_speed_test", { device: d.device.name });
+        await waitForJob(`speed:${d.device.name}`);
+      } catch {
+        /* résultat absent pour ce disque : le rapport n'aura pas de ligne de vitesse */
+      }
+    }
+    setScan({ speedDisk: null });
     setScan({ step: "ram" });
     await invoke("start_ram_test");
     await waitForJob("ram");
@@ -122,8 +140,9 @@ function interactivePayload() {
 }
 
 /** Écran « Analyse complète » (maquette FullScan.dc.html). */
-export function FullScanPage({ onRefreshDisks }: { onRefreshDisks: () => Promise<void> }) {
-  const { step, error, gpuNote, inventory } = useSyncExternalStore(subscribeScan, scanState);
+export function FullScanPage({ onRefreshDisks }: { onRefreshDisks: () => Promise<DiskEntry[]> }) {
+  const { step, error, gpuNote, inventory, speedDisk } = useSyncExternalStore(subscribeScan, scanState);
+  const [speed] = useJob<SpeedProgress, unknown>(speedDisk ? `speed:${speedDisk.device}` : null);
   const [preview, setPreview] = useState<Report | null>(null);
   const [checks, setChecks] = useState<Record<string, boolean>>(savedChecks);
   const interactive = useResults();
@@ -203,7 +222,7 @@ export function FullScanPage({ onRefreshDisks }: { onRefreshDisks: () => Promise
         <div className="header-actions">
           <button type="button" className={preview ? "btn" : "btn btn-primary"} onClick={run} disabled={running}>
             {step === "done" ? "Relancer l'analyse" : "Lancer l'analyse"}
-            <span className="btn-sub">~9 min</span>
+            <span className="btn-sub">~10 min</span>
           </button>
           {inventory && (
             <ReportButton
@@ -222,7 +241,7 @@ export function FullScanPage({ onRefreshDisks }: { onRefreshDisks: () => Promise
       {!inventory && !error && <p className="muted">Lecture du matériel… (environ 10 secondes)</p>}
 
       {gpuNote && <div className="banner banner-warn">{gpuNote}</div>}
-      {running && <StepProgress step={step} cpu={cpu.progress} ram={ram.progress} gpu={gpu} />}
+      {running && <StepProgress step={step} cpu={cpu.progress} ram={ram.progress} gpu={gpu} speed={speed.progress} speedDisk={speedDisk} />}
       {samples.length > 1 && (
         <section className="panel" aria-label="Processeur sous charge">
           <h3>Processeur sous charge</h3>
@@ -285,13 +304,17 @@ function StepProgress({
   cpu,
   ram,
   gpu,
+  speed,
+  speedDisk,
 }: {
   step: Step;
   cpu: StressSample | null;
   ram: RamProgress | null;
   gpu: GpuState;
+  speed: SpeedProgress | null;
+  speedDisk: ScanState["speedDisk"];
 }) {
-  const steps: Step[] = ["inventory", "disks", "ram", "cpu", "gpu"];
+  const steps: Step[] = ["inventory", "disks", "speed", "ram", "cpu", "gpu"];
   let pct: number | null = null;
   let detail = "";
   if (step === "cpu" && cpu) {
@@ -300,6 +323,10 @@ function StepProgress({
   } else if (step === "ram" && ram) {
     pct = ram.bytes_total > 0 ? (ram.bytes_done / ram.bytes_total) * 100 : 0;
     detail = `Passe ${ram.pass} sur ${ram.total_passes} · ${ram.errors} erreur(s)`;
+  } else if (step === "speed" && speedDisk) {
+    const part = speed ? (speed.step === "read" ? 0 : speed.step === "access" ? 1 : 2) + speed.pct / 100 : 0;
+    pct = ((speedDisk.index + part / 3) / speedDisk.count) * 100;
+    detail = `Disque ${speedDisk.index + 1} sur ${speedDisk.count}${speed ? ` · ${SPEED_STEPS[speed.step]}` : ""}`;
   } else if (step === "gpu") {
     const last = gpu.samples[gpu.samples.length - 1];
     pct = last ? (last.t_s / GPU_SECONDS) * 100 : null;
@@ -307,7 +334,8 @@ function StepProgress({
       ? `${Math.round(last.t_s)} s sur ${GPU_SECONDS}${last.temperature_c !== null ? ` · ${Math.round(last.temperature_c)} °C` : ""} · ${gpu.renderErrors} erreur(s) de rendu`
       : "";
   }
-  const job = step === "cpu" ? "cpu" : step === "ram" ? "ram" : null;
+  const job =
+    step === "cpu" ? "cpu" : step === "ram" ? "ram" : step === "speed" && speedDisk ? `speed:${speedDisk.device}` : null;
   return (
     <section className="panel" role="status" aria-label="Progression de l'analyse">
       <ol className="steps">
